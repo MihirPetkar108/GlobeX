@@ -8,10 +8,10 @@ import SpecularButton from "@/components/ui/SpecularButton";
 import { DetailDrawer } from "@/components/common/DetailDrawer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocumentVerificationStudio from "@/components/documents/DocumentVerificationStudio";
-import CryptoEscrowCard from "@/components/escrow/CryptoEscrowCard";
-import ShipmentTracker from "@/components/shipments/ShipmentTracker";
-import DisputeResolutionSuite from "@/components/disputes/DisputeResolutionSuite";
-import PublicTradeLedgerTable from "@/components/blockchain/PublicTradeLedgerTable";
+import PaymentEscrowFlow from "@/components/escrow/PaymentEscrowFlow";
+import ShipmentRouteMap from "@/components/shipments/ShipmentRouteMap";
+import DisputeCenter from "@/components/disputes/DisputeCenter";
+import AuditTrailTimeline from "@/components/blockchain/AuditTrailTimeline";
 import type { Message } from "@/components/agent-elements/types";
 import { TrustBreakdownDrawer } from "@/components/trust/TrustBreakdownDrawer";
 import { cn } from "@/lib/utils";
@@ -419,19 +419,19 @@ export const TradeWorkspacePage: React.FC = () => {
                 </TabsContent>
 
                 <TabsContent value="payment" className="mt-0 focus-visible:outline-none">
-                  <CryptoEscrowCard tradeId={tradeId} />
+                  <PaymentEscrowFlow tradeId={tradeId} />
                 </TabsContent>
 
                 <TabsContent value="shipment" className="mt-0 focus-visible:outline-none">
-                  <ShipmentTracker />
+                  <ShipmentRouteMap />
                 </TabsContent>
 
                 <TabsContent value="disputes" className="mt-0 focus-visible:outline-none">
-                  <DisputeResolutionSuite />
+                  <DisputeCenter tradeId={tradeId} />
                 </TabsContent>
 
                 <TabsContent value="blockchain" className="mt-0 focus-visible:outline-none">
-                  <PublicTradeLedgerTable />
+                  <AuditTrailTimeline />
                 </TabsContent>
               </Tabs>
             </div>
