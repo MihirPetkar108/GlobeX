@@ -81,15 +81,15 @@ export const ShipmentRouteMap: React.FC<ShipmentRouteMapProps> = ({
   return (
     <div className="space-y-4 select-none">
       {/* ── HERO: Origin → Destination Route Map ────────────────────────── */}
-      <div className="relative rounded-3xl overflow-hidden border border-sky-200/80 bg-gradient-to-br from-sky-100 via-blue-50 to-emerald-50 shadow-sm">
+      <div className="relative rounded-3xl overflow-hidden border border-sky-300/60 shadow-sm">
         {/* Status pill */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur border border-sky-200 shadow-2xs">
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur border border-sky-200 shadow-2xs">
           <Ship className="w-3.5 h-3.5 text-sky-600" />
           <span className="text-xs font-bold text-slate-900">{status}</span>
         </div>
 
         {eta && (
-          <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur border border-sky-200 shadow-2xs">
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur border border-sky-200 shadow-2xs">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
             <span className="text-xs font-semibold text-slate-700">
               ETA {new Date(eta).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -98,23 +98,30 @@ export const ShipmentRouteMap: React.FC<ShipmentRouteMapProps> = ({
         )}
 
         {/* Route canvas */}
-        <div className="relative w-full aspect-[1000/430] sm:aspect-[1000/360]">
+        <div className="relative w-full aspect-[1000/430] sm:aspect-[1000/360] bg-gradient-to-br from-sky-500 via-blue-600 to-sky-700">
           <svg viewBox="0 0 1000 360" preserveAspectRatio="xMidYMid meet" className="absolute inset-0 w-full h-full">
             <defs>
+              {/* Nautical grid — light lines so they read on top of the water */}
               <pattern id="graticule" width="60" height="60" patternUnits="userSpaceOnUse">
-                <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(15,23,42,0.05)" strokeWidth="1" />
+                <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
               </pattern>
             </defs>
+
+            {/* Water fills the whole canvas */}
             <rect width="1000" height="360" fill="url(#graticule)" />
 
-            {/* Full route (dashed) */}
-            <path d={pathD} fill="none" stroke="rgba(100,116,139,0.35)" strokeWidth="2.5" strokeDasharray="1 10" strokeLinecap="round" />
+            {/* Landmasses at each coast, so water reads clearly as water */}
+            <ellipse cx="30" cy="270" rx="230" ry="190" fill="#ECFDF5" opacity="0.95" />
+            <ellipse cx="960" cy="90" rx="230" ry="190" fill="#ECFDF5" opacity="0.95" />
+
+            {/* Full route (dashed, over water) */}
+            <path d={pathD} fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.5" strokeDasharray="1 10" strokeLinecap="round" />
 
             {/* Traveled portion (solid, animated draw-in) */}
             <path
               d={pathD}
               fill="none"
-              stroke="#0EA5E9"
+              stroke="#FDE047"
               strokeWidth="3"
               strokeLinecap="round"
               pathLength={100}
@@ -138,8 +145,8 @@ export const ShipmentRouteMap: React.FC<ShipmentRouteMapProps> = ({
             style={toPct(shipPos)}
           >
             <div className="relative flex items-center justify-center">
-              <span className="absolute w-8 h-8 rounded-full bg-sky-400/40 animate-ping" />
-              <span className="relative w-8 h-8 rounded-full bg-sky-600 border-2 border-white shadow-md flex items-center justify-center text-white">
+              <span className="absolute w-8 h-8 rounded-full bg-white/40 animate-ping" />
+              <span className="relative w-8 h-8 rounded-full bg-white border-2 border-sky-600 shadow-md flex items-center justify-center text-sky-600">
                 <Ship className="w-4 h-4" />
               </span>
             </div>
@@ -161,6 +168,11 @@ export const ShipmentRouteMap: React.FC<ShipmentRouteMapProps> = ({
               <div className="text-xs font-bold text-slate-900 truncate">{destCountry}</div>
               <div className="text-[10px] text-slate-500 font-sans truncate">{destPort}</div>
             </div>
+          </div>
+
+          {/* Water label */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-white/70">Sea Route</span>
           </div>
         </div>
       </div>

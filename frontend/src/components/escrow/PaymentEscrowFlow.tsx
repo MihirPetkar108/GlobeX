@@ -8,8 +8,6 @@ import {
   Coins,
   Lock,
   Unlock,
-  CreditCard,
-  Wallet,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -23,6 +21,26 @@ interface PaymentEscrowFlowProps {
   amountUSD?: number;
   sellerName?: string;
 }
+
+/** Official brand marks (via simple-icons), rendered inline so the payment
+ *  method picker reads as real logos rather than generic glyphs. */
+const RazorpayIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+    <path
+      fill="#0C2451"
+      d="M22.436 0l-11.91 7.773-1.174 4.276 6.625-4.297L11.65 24h4.391l6.395-24zM14.26 10.098L3.389 17.166 1.564 24h9.008l3.688-13.902Z"
+    />
+  </svg>
+);
+
+const EthereumIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+    <path
+      fill="#3C3C3D"
+      d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"
+    />
+  </svg>
+);
 
 type Step = "idle" | "method" | "details" | "review" | "success";
 type PaymentMethod = "razorpay" | "web3";
@@ -206,52 +224,40 @@ export const PaymentEscrowFlow: React.FC<PaymentEscrowFlowProps> = ({
               Choose a payment method
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-center gap-10 sm:gap-16 py-3">
               {(
                 [
-                  {
-                    id: "razorpay" as const,
-                    icon: CreditCard,
-                    title: "Razorpay",
-                    desc: "UPI, cards & netbanking checkout.",
-                  },
-                  {
-                    id: "web3" as const,
-                    icon: Wallet,
-                    title: "Web3 Wallet",
-                    desc: "Fund escrow directly on-chain.",
-                  },
+                  { id: "razorpay" as const, Icon: RazorpayIcon, title: "Razorpay" },
+                  { id: "web3" as const, Icon: EthereumIcon, title: "Web3 Wallet" },
                 ] as const
               ).map((opt) => {
                 const selected = method === opt.id;
-                const Icon = opt.icon;
+                const Icon = opt.Icon;
                 return (
                   <button
                     key={opt.id}
                     type="button"
                     onClick={() => setMethod(opt.id)}
-                    className={cn(
-                      "text-left p-4 rounded-2xl border transition-all flex items-start gap-3",
-                      selected
-                        ? "bg-slate-900 border-slate-900 text-white shadow-md"
-                        : "bg-white border-slate-200 hover:border-slate-300 text-slate-900"
-                    )}
+                    className="group flex flex-col items-center gap-3"
                   >
                     <div
                       className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                        selected ? "bg-white/10 border-white/20 text-white" : "bg-sky-50 border-sky-200 text-sky-600"
+                        "relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-slate-50 flex items-center justify-center transition-all",
+                        selected
+                          ? "ring-4 ring-slate-900 ring-offset-2"
+                          : "ring-1 ring-slate-200 group-hover:ring-slate-300 group-hover:scale-105"
                       )}
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-9 h-9 sm:w-10 sm:h-10" />
+                      {selected && (
+                        <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-sm">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </span>
+                      )}
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold">{opt.title}</div>
-                      <div className={cn("text-[11px] font-sans", selected ? "text-white/70" : "text-slate-500")}>
-                        {opt.desc}
-                      </div>
-                    </div>
-                    {selected && <Check className="w-4 h-4 ml-auto shrink-0 text-white" />}
+                    <span className={cn("text-sm font-bold", selected ? "text-slate-900" : "text-slate-500")}>
+                      {opt.title}
+                    </span>
                   </button>
                 );
               })}
@@ -375,7 +381,7 @@ export const PaymentEscrowFlow: React.FC<PaymentEscrowFlowProps> = ({
               <div className="p-4 flex items-center justify-between text-xs">
                 <span className="font-sans text-slate-500">Payment Method</span>
                 <span className="font-semibold text-slate-900 flex items-center gap-1.5">
-                  {method === "razorpay" ? <CreditCard className="w-3.5 h-3.5" /> : <Wallet className="w-3.5 h-3.5" />}
+                  {method === "razorpay" ? <RazorpayIcon className="w-3.5 h-3.5" /> : <EthereumIcon className="w-3.5 h-3.5" />}
                   {method === "razorpay" ? "Razorpay" : "Web3 Wallet"}
                 </span>
               </div>
@@ -436,7 +442,7 @@ export const PaymentEscrowFlow: React.FC<PaymentEscrowFlowProps> = ({
               <div className="p-4 flex items-center justify-between text-xs">
                 <span className="font-sans text-slate-500">Payment Method</span>
                 <span className="font-semibold text-slate-900 flex items-center gap-1.5">
-                  {method === "razorpay" ? <CreditCard className="w-3.5 h-3.5" /> : <Wallet className="w-3.5 h-3.5" />}
+                  {method === "razorpay" ? <RazorpayIcon className="w-3.5 h-3.5" /> : <EthereumIcon className="w-3.5 h-3.5" />}
                   {method === "razorpay" ? "Razorpay" : "Web3 Wallet"}
                 </span>
               </div>

@@ -106,7 +106,7 @@ export const DocumentVerificationStudio: React.FC<DocumentVerificationStudioProp
   const [selectedDoc, setSelectedDoc] = useState<TradeDocument | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
-  const [docsExpanded, setDocsExpanded] = useState(true);
+  const [docsExpanded, setDocsExpanded] = useState(false);
 
   // Merge the required-document checklist with whatever has actually been
   // uploaded, so every row always has a definite status — including the

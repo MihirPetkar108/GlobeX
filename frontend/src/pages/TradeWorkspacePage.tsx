@@ -370,33 +370,6 @@ export const TradeWorkspacePage: React.FC = () => {
         {/* ── STATE 2: ACCEPTED / CONFIRMED STATE (DIRECT GREEN BOX) ─────────── */}
         {tradeState === "confirmed" && (
           <div className="space-y-6 font-sans">
-            
-            {/* Header & Status Banner */}
-            <div className="p-5 rounded-3xl bg-emerald-50/90 border border-emerald-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0 shadow-2xs">
-                  <CheckCircle2 className="w-5.5 h-5.5" />
-                </div>
-                <div className="space-y-0.5">
-                  <h3 className="text-base sm:text-lg font-extrabold text-emerald-950">Trade Confirmed</h3>
-                  <p className="text-xs sm:text-sm text-emerald-800 font-medium">
-                    Supplier has accepted your proposal. Active workspace initialized.
-                  </p>
-                </div>
-              </div>
-
-              <SpecularButton
-                size="sm"
-                radius={10}
-                variant="emerald"
-                onClick={() => handleTabChange("shipment")}
-                className="px-5 py-2 font-bold text-xs shrink-0"
-                icon={<Ship className="w-4 h-4" />}
-                iconPosition="left"
-              >
-                Track Trade →
-              </SpecularButton>
-            </div>
 
             {/* Tabs & Full Workspace Content */}
             <div className="space-y-5 pt-1">

@@ -120,11 +120,11 @@ export const DisputeCenter: React.FC<DisputeCenterProps> = ({ tradeId = "TRD-IND
               a short quantity, or a documentation mismatch — you can file a dispute here.
             </p>
             <PrimaryAction
-              size="sm"
-              variant="outline"
-              className="mt-1"
+              size="lg"
+              variant="amber"
+              className="mt-2 bg-yellow-400 hover:bg-yellow-500 border-yellow-500 text-slate-900 shadow-md shadow-yellow-500/20"
               onClick={() => setView("form")}
-              icon={<Scale className="w-3.5 h-3.5" />}
+              icon={<Scale className="w-4 h-4" />}
               iconPosition="left"
             >
               File a Dispute
