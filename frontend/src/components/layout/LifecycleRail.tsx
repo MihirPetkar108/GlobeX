@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { Compass, Gauge, ShieldCheck, Handshake, Landmark, LayoutDashboard } from "lucide-react";
+import { Compass, Gauge, ShieldCheck, Handshake, Landmark, Workflow } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -36,11 +36,11 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
       matchPrefixes: ["/discover", "/catalog"],
     },
     {
-      key: "trades",
-      label: "Trades",
-      href: "/trades",
-      icon: Handshake,
-      matchPrefixes: ["/trades"],
+      key: isExporterView ? "export-trades" : "trades",
+      label: isExporterView ? "Export Trades" : "Trades",
+      href: isExporterView ? "/export-trades" : "/trades",
+      icon: isExporterView ? Workflow : Handshake,
+      matchPrefixes: isExporterView ? ["/export-trades"] : ["/trades"],
     },
     {
       key: "assess",
@@ -66,7 +66,6 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
   ];
 
   const activeIndex = steps.findIndex((step) => step.matchPrefixes.some((p) => location.pathname.startsWith(p)));
-  const isDashboard = location.pathname === "/home";
 
   return (
     <nav
@@ -76,26 +75,6 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
         mobile ? "flex w-full" : "hidden lg:flex w-60 shrink-0 border-r border-[var(--hairline)] pl-3 sm:pl-6"
       )}
     >
-      {/* Dashboard — always reachable from the rail */}
-      <Link
-        to="/home"
-        className={cn(
-          "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2",
-          isDashboard
-            ? dark 
-              ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-              : "bg-[var(--brand-subtle)] text-[var(--brand)] font-bold"
-            : dark
-              ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-              : "text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-        )}
-      >
-        <LayoutDashboard className={cn("w-4 h-4 shrink-0", isDashboard ? (dark ? "text-emerald-400" : "text-[var(--brand)]") : (dark ? "text-slate-400" : "text-[var(--text-tertiary)]"))} />
-        <span className="truncate">Dashboard</span>
-      </Link>
-
-      <div className={cn("h-px mx-3 mb-2", dark ? "bg-slate-800" : "bg-[var(--hairline)]")} />
-
       {/* Numbered stepper */}
       <div className="relative">
         {steps.map((step, idx) => {

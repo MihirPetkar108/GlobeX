@@ -3,6 +3,12 @@ import { useAuthContext } from "@/context/AuthContext";
 import type { BusinessType, OrganizationRole } from "@/services/auth/authService";
 import { Listing } from "@/types/trade";
 import { aiService, ListingRecord } from "@/services/api/aiService";
+import {
+  ExportListing,
+  ExportRequest,
+  INITIAL_EXPORT_LISTINGS,
+  INITIAL_EXPORT_REQUESTS,
+} from "@/data/exportRequests";
 
 export type TradeDirection = "Export" | "Import";
 
@@ -67,6 +73,12 @@ interface WorkspaceContextType {
   listingsError: string | null;
   refreshListings: () => Promise<void>;
   addListing: (newListing: Listing) => void;
+  exportListings: ExportListing[];
+  addExportListing: (newListing: ExportListing) => void;
+  updateExportListing: (id: string, changes: Partial<ExportListing>) => void;
+  exportRequests: ExportRequest[];
+  updateExportRequest: (requestId: string, changes: Partial<ExportRequest>) => void;
+  addExportRequest: (request: ExportRequest) => void;
   logout: () => Promise<void>;
   hasUnreadTradeUpdates: boolean;
   setHasUnreadTradeUpdates: (val: boolean) => void;
@@ -84,6 +96,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [listings, setListings] = useState<Listing[]>([]);
   const [listingsLoading, setListingsLoading] = useState<boolean>(true);
   const [listingsError, setListingsError] = useState<string | null>(null);
+  
+  // Exporter Product Listings and Export Trades
+  const [exportListings, setExportListings] = useState<ExportListing[]>(INITIAL_EXPORT_LISTINGS);
+  const [exportRequests, setExportRequests] = useState<ExportRequest[]>(INITIAL_EXPORT_REQUESTS);
   
   // Notification indicator state for trade updates (counteroffers, status changes)
   const [hasUnreadTradeUpdates, setHasUnreadTradeUpdates] = useState<boolean>(true);
@@ -108,6 +124,26 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const handleAddListing = (newListing: Listing) => {
     setListings((prev) => [newListing, ...prev]);
+  };
+
+  const handleAddExportListing = (newListing: ExportListing) => {
+    setExportListings((prev) => [newListing, ...prev]);
+  };
+
+  const handleUpdateExportListing = (id: string, changes: Partial<ExportListing>) => {
+    setExportListings((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...changes } : item))
+    );
+  };
+
+  const updateExportRequest = (requestId: string, changes: Partial<ExportRequest>) => {
+    setExportRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, ...changes } : req))
+    );
+  };
+
+  const addExportRequest = (request: ExportRequest) => {
+    setExportRequests((prev) => [request, ...prev]);
   };
 
   const handleSetActiveDirection = (direction: TradeDirection) => {
@@ -153,6 +189,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         listingsError,
         refreshListings,
         addListing: handleAddListing,
+        exportListings,
+        addExportListing: handleAddExportListing,
+        updateExportListing: handleUpdateExportListing,
+        exportRequests,
+        updateExportRequest,
+        addExportRequest,
         logout: signOut,
         hasUnreadTradeUpdates,
         setHasUnreadTradeUpdates,
