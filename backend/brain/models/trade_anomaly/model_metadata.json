@@ -1,0 +1,31 @@
+{
+  "model_name": "Trade Behaviour Anomaly Detection XGBoost",
+  "version": "1.0.0",
+  "features": [
+    "trade_value_usd",
+    "net_weight_kg",
+    "quantity",
+    "transaction_count",
+    "unit_value_usd_per_kg",
+    "trade_growth_mom",
+    "unit_value_change_mom",
+    "quantity_growth_mom",
+    "weight_growth_mom",
+    "yoy_growth",
+    "rolling_mean_3m",
+    "rolling_std_3m",
+    "val_to_rolling_mean_ratio",
+    "val_rolling_zscore",
+    "partner_share_pct",
+    "partner_share_change_mom",
+    "new_corridor_flag",
+    "trade_flow",
+    "hs6",
+    "partner_iso3"
+  ],
+  "optimal_threshold": 0.45,
+  "validation_f1": 0.9818,
+  "train_period": "<= 202406",
+  "val_period": "202407 - 202412",
+  "test_period": "202501 - 202512"
+}

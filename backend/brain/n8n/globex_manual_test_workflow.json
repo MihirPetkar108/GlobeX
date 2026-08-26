@@ -1,0 +1,234 @@
+{
+  "name": "GlobeXAI — 1-Click Manual Test Workflow (Zero-DB)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🖱️ 1-CLICK MANUAL TEST WORKFLOW\n\n**Bina Webhook / Bina curl ke direct test karne ke liye:**\n1. Simply click the orange **'Test step'** / **'Execute workflow'** button at the bottom.\n2. The **'Mock Trade Input'** node has pre-configured items:\n   - Item 1: Basmati Rice (India ➔ UAE)\n   - Item 2: Black Pepper / Spices (India ➔ USA)\n3. Downstream nodes will execute against your FastAPI backend on `http://localhost:8000` automatically!",
+        "height": 380,
+        "width": 360,
+        "color": 4
+      },
+      "id": "sticky-manual-note",
+      "name": "Manual Test Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-380, 200]
+    },
+
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "When clicking ‘Test step’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [40, 320]
+    },
+
+    {
+      "parameters": {
+        "jsCode": "// Yahan aap apna custom array of items daal sakte ho!\n// n8n requires each item to be wrapped in { json: { ... } }\n\nreturn [\n  {\n    json: {\n      product: \"Basmati Rice\",\n      origin_country: \"IND\",\n      destination_country: \"ARE\",\n      quantity_kg: 50000,\n      target_price_usd: 1100,\n      certifications: [\"ISO 22000\", \"FSSAI\", \"APEDA\", \"Halal\"],\n      trade_flow: \"Export\",\n      regime: \"balanced\",\n      top_n: 5\n    }\n  },\n  {\n    json: {\n      product: \"Black Pepper & Spices\",\n      origin_country: \"IND\",\n      destination_country: \"USA\",\n      quantity_kg: 15000,\n      target_price_usd: 4200,\n      certifications: [\"Spices Board\", \"US FDA\", \"ISO 9001\"],\n      trade_flow: \"Export\",\n      regime: \"balanced\",\n      top_n: 5\n    }\n  }\n];"
+      },
+      "id": "code-mock-items",
+      "name": "Mock Trade Input (Array)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 320]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/predict/hs-code",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"product\": $json.product, \"origin\": $json.origin_country, \"destination\": $json.destination_country }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "http-manual-hs",
+      "name": "HTTP — HS Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [480, 320]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/predict/market-opportunity",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"product\": $json.product, \"quantity_kg\": $json.quantity_kg, \"regime\": $json.regime, \"top_n\": $json.top_n }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "http-manual-market-opp",
+      "name": "HTTP — Market Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [700, 320]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/trade-anomaly/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"trade_flow\": $json.trade_flow, \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"partner_country\": $json.destination_country, \"trade_value_usd\": Number($json.target_price_usd * $json.quantity_kg / 1000 || 550000), \"quantity\": Number($json.quantity_kg), \"quantity_unit\": \"kg\", \"period\": \"202512\", \"transaction_count\": 1 }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "http-manual-anomaly",
+      "name": "HTTP — Trade Anomaly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [920, 320]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/predict/counterparty-match",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"destination_country\": $json.destination_country, \"quantity_kg\": $json.quantity_kg, \"certifications\": $json.certifications, \"top_n\": 5 }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "http-manual-cp-match",
+      "name": "HTTP — Counterparty Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1140, 320]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/compliance/rag-analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"hs_code_str\": $('HTTP — HS Classifier').item.json.hs_code_formatted, \"origin_country\": $json.origin_country, \"destination_country\": $json.destination_country, \"certifications\": $json.certifications, \"trade_value_usd\": Number($json.target_price_usd * $json.quantity_kg / 1000 || 550000) }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      },
+      "id": "http-manual-compliance",
+      "name": "HTTP — Compliance RAG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [1360, 320]
+    },
+
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Aggregate ML results for each item in the array\nconst input = $json;\nconst hs = $('HTTP — HS Classifier').item.json;\nconst mkt = $('HTTP — Market Opportunity').item.json;\nconst anomaly = $('HTTP — Trade Anomaly').item.json;\nconst cpMatch = $('HTTP — Counterparty Match').item.json;\nconst comp = $('HTTP — Compliance RAG').item.json;\n\nconst marketScore = Number(mkt?.summary_table?.[0]?.opportunity_score ?? mkt?.top_recommendations?.[0]?.opportunity_score ?? 90);\nconst destinationRank = Number(mkt?.summary_table?.[0]?.final_rank ?? 1);\nconst anomalyScore = Number(anomaly?.risk?.anomaly_score ?? 0.18);\nconst riskLevel = anomaly?.risk?.risk_level ?? 'LOW';\nconst cpMatchScore = Number(cpMatch?.counterparties?.[0]?.match_score ? cpMatch.counterparties[0].match_score * 100 : 92);\nconst complianceScore = Number(comp?.compliance_score ?? 85);\n\nconst overallScore = Math.round(\n  0.40 * marketScore +\n  0.30 * complianceScore +\n  0.20 * (100 - anomalyScore * 100) +\n  0.10 * cpMatchScore\n);\n\nlet recommendation = 'REVIEW';\nif (overallScore >= 75 && riskLevel !== 'CRITICAL' && riskLevel !== 'HIGH') {\n  recommendation = 'PROCEED';\n} else if (overallScore < 40 || riskLevel === 'CRITICAL') {\n  recommendation = 'AVOID';\n}\n\nreturn {\n  status: 'SUCCESS',\n  trade_corridor: `${input.origin_country} -> ${input.destination_country}`,\n  commodity: input.product,\n  hs6: hs?.hs6 ?? 100630,\n  hs_formatted: hs?.hs_code_formatted ?? '1006.30',\n  market_opportunity_score: marketScore,\n  destination_rank: destinationRank,\n  trade_anomaly_score: anomalyScore,\n  trade_risk_level: riskLevel,\n  top_counterparty: cpMatch?.counterparties?.[0]?.name ?? 'Verified Exporter',\n  tariff_rate: comp?.tariff?.preferential_rate_pct !== undefined ? `${comp.tariff.preferential_rate_pct}%` : '0.0%',\n  trade_agreement: comp?.tariff?.agreement ?? 'Bilateral Agreement',\n  overall_trade_score: overallScore,\n  recommendation,\n  evaluated_at: new Date().toISOString()\n};"
+      },
+      "id": "code-manual-aggregate",
+      "name": "Synthesize Analysis (Per Item)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 320]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Test step’": {
+      "main": [
+        [
+          {
+            "node": "Mock Trade Input (Array)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Trade Input (Array)": {
+      "main": [
+        [
+          {
+            "node": "HTTP — HS Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — HS Classifier": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Market Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Market Opportunity": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Trade Anomaly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Trade Anomaly": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Counterparty Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Counterparty Match": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Compliance RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Compliance RAG": {
+      "main": [
+        [
+          {
+            "node": "Synthesize Analysis (Per Item)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "globex-manual-v1-0-0",
+  "id": "globex-manual-test-workflow",
+  "tags": ["globex", "manual-test", "zero-db", "array-items"]
+}

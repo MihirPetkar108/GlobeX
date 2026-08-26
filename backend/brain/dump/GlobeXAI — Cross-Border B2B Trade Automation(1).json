@@ -1,0 +1,1531 @@
+{
+  "name": "GlobeXAI — Cross-Border B2B Trade Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyze-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "aee304ba-37b5-4388-a9b7-9c5e4e0b141c",
+      "name": "Webhook — Analyze Trade",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "0fb537da-0188-44b1-8c55-5b1a86514d16"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p",
+              "name": "product",
+              "value": "={{ $json.body.product }}",
+              "type": "string"
+            },
+            {
+              "id": "o",
+              "name": "origin_country",
+              "value": "={{ $json.body.origin_country }}",
+              "type": "string"
+            },
+            {
+              "id": "d",
+              "name": "destination_country",
+              "value": "={{ $json.body.destination_country }}",
+              "type": "string"
+            },
+            {
+              "id": "q",
+              "name": "quantity",
+              "value": "={{ $json.body.quantity }}",
+              "type": "number"
+            },
+            {
+              "id": "t",
+              "name": "target_price",
+              "value": "={{ $json.body.target_price }}",
+              "type": "number"
+            },
+            {
+              "id": "c",
+              "name": "certifications",
+              "value": "={{ $json.body.certifications }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e8c7f19a-7d6e-45ee-815e-df46ceffb6e4",
+      "name": "Edit Fields — Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Python/FastAPI ML Service base URL + /predict/hs-code__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"product\": $json.product, \"origin\": $json.origin_country, \"destination\": $json.destination_country } }}",
+        "options": {}
+      },
+      "id": "2cb969a9-e42b-40e9-b569-13625fd7653a",
+      "name": "HTTP — HS Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "<__PLACEHOLDER_VALUE__UN Comtrade API endpoint (e.g. https://comtradeapi.un.org/data/v1/get/...)__>",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "cmdCode",
+              "value": "={{ $(\"HTTP — HS Classifier\").item.json.hs_code }}"
+            },
+            {
+              "name": "reporterCode",
+              "value": "={{ $(\"Edit Fields — Normalize Input\").item.json.origin_country }}"
+            },
+            {
+              "name": "partnerCode",
+              "value": "={{ $(\"Edit Fields — Normalize Input\").item.json.destination_country }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c37405a2-680c-4c69-aa2f-9cf9bbab39d8",
+      "name": "HTTP — UN Comtrade API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Python/FastAPI ML Service base URL + /predict/market-opportunity__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"hs_code\": $(\"HTTP — HS Classifier\").item.json.hs_code, \"trade\": $json } }}",
+        "options": {}
+      },
+      "id": "0b1997b9-aac8-4dd1-ab76-24b088e68eab",
+      "name": "HTTP — Market Opportunity Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Python/FastAPI ML Service base URL + /predict/counterparty-match__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"hs_code\": $(\"HTTP — HS Classifier\").item.json.hs_code, \"destination\": $(\"Edit Fields — Normalize Input\").item.json.destination_country } }}",
+        "options": {}
+      },
+      "id": "66f4daa5-9bce-4b27-94da-2c5194d1a0ea",
+      "name": "HTTP — Counterparty Matching Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Python/FastAPI ML Service base URL + /predict/counterparty-risk__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"counterparties\": $json.top_counterparties } }}",
+        "options": {}
+      },
+      "id": "d32354e5-0a58-42b0-a5f9-28ec6d24370d",
+      "name": "HTTP — Counterparty Risk Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1344,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Compliance/RAG backend URL (vector DB + embeddings + LLM)__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"hs_code\": $(\"HTTP — HS Classifier\").item.json.hs_code, \"origin\": $(\"Edit Fields — Normalize Input\").item.json.origin_country, \"destination\": $(\"Edit Fields — Normalize Input\").item.json.destination_country, \"certifications\": $(\"Edit Fields — Normalize Input\").item.json.certifications } }}",
+        "options": {}
+      },
+      "id": "d4c15335-4f3e-4303-8064-6b187f54c4bd",
+      "name": "HTTP — Compliance RAG API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1568,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const hs = $('HTTP — HS Classifier').first().json;\nconst market = $('HTTP — Market Opportunity Model').first().json;\nconst match = $('HTTP — Counterparty Matching Model').first().json;\nconst risk = $('HTTP — Counterparty Risk Model').first().json;\nconst compliance = $('HTTP — Compliance RAG API').first().json;\n\nconst marketScore = Number(market.market_opportunity_score) || 0;\nconst riskScore = Number(risk.counterparty_risk_score) || 0;\nconst complianceScore = Number(compliance.compliance_score) || 0;\n\n// Higher market + compliance is better; higher risk is worse.\nconst finalTradeScore = Math.round(\n  0.4 * marketScore + 0.3 * complianceScore + 0.3 * (100 - riskScore)\n);\n\nlet recommendation = 'REVIEW';\nif (finalTradeScore >= 75) recommendation = 'PROCEED';\nelse if (finalTradeScore < 50) recommendation = 'AVOID';\n\nreturn [{ json: {\n  hs_code: hs.hs_code,\n  market_opportunity_score: marketScore,\n  top_counterparties: match.top_counterparties,\n  counterparty_risk_score: riskScore,\n  compliance_score: complianceScore,\n  final_trade_score: finalTradeScore,\n  recommendation,\n} }];"
+      },
+      "id": "8220be27-77b7-4568-9ea2-1f9b06620738",
+      "name": "Code — Aggregate Trade Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO trade_analysis (hs_code, market_opportunity_score, counterparty_risk_score, compliance_score, final_trade_score, recommendation, top_counterparties, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $json.hs_code }},{{ $json.market_opportunity_score }},{{ $json.counterparty_risk_score }},{{ $json.compliance_score }},{{ $json.final_trade_score }},{{ $json.recommendation }},{{ JSON.stringify($json.top_counterparties) }}"
+        }
+      },
+      "id": "4a7209b3-21c1-419d-b930-ab870e896a59",
+      "name": "Postgres — Save Analysis",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2016,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $(\"Code — Aggregate Trade Score\").item.json }}",
+        "options": {}
+      },
+      "id": "b932fe66-e818-424b-af90-3a37b78f103d",
+      "name": "Respond — Trade Analysis",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "68797523-eccc-4c68-842b-8f88aff7f453",
+      "name": "Webhook — Create Trade",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "857cf077-5381-4147-bf2e-7d5a1722f401"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM counterparties WHERE id = $1 LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ $json.body.counterparty_id }}"
+        }
+      },
+      "id": "4b5d9f50-0b71-485c-9a25-aac03c06563f",
+      "name": "Postgres — Fetch Counterparty",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        224
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Backend Trade Service URL (create trade record)__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"buyer_id\": $(\"Webhook — Create Trade\").item.json.body.buyer_id, \"counterparty\": $json, \"terms\": $(\"Webhook — Create Trade\").item.json.body.terms } }}",
+        "options": {}
+      },
+      "id": "a6bb6fd8-45f6-4eb7-b938-eab3e69d1c44",
+      "name": "HTTP — Trade Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Ethereum / EVM Testnet smart-contract service URL (deploy/create USDC escrow)__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"rpc_url\": \"<<RPC_URL>>\", \"contract_address\": \"<<ESCROW_CONTRACT_ADDRESS>>\", \"trade_id\": $json.trade_id, \"amount_usdc\": $json.amount_usdc, \"buyer\": $(\"Webhook — Create Trade\").item.json.body.buyer_wallet, \"seller\": $(\"Postgres — Fetch Counterparty\").item.json.wallet_address } }}",
+        "options": {}
+      },
+      "id": "aaad12ef-b2ef-4624-ae94-7f9638d14e8e",
+      "name": "HTTP — Smart Contract: Create Escrow (TESTNET)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO escrow_contracts (trade_id, escrow_id, tx_hash, amount_usdc, status, created_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $(\"HTTP — Trade Service\").item.json.trade_id }},{{ $json.escrow_id }},{{ $json.tx_hash }},{{ $(\"HTTP — Trade Service\").item.json.amount_usdc }},{{ $json.status }}"
+        }
+      },
+      "id": "43868d58-ba07-45d5-b0c4-25946a611020",
+      "name": "Postgres — Save Contract",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        224
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"trade_id\": $(\"HTTP — Trade Service\").item.json.trade_id, \"escrow\": $(\"HTTP — Smart Contract: Create Escrow (TESTNET)\").item.json } }}",
+        "options": {}
+      },
+      "id": "d658f8c6-e670-4129-b3cc-0fcee16a5667",
+      "name": "Respond — Trade Created",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-uploaded",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "44fab670-f8b0-474d-8a6e-4f21a6ca97c8",
+      "name": "Webhook — Document Uploaded",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        544
+      ],
+      "webhookId": "bed421f8-6c1c-43f3-a923-78079adcb0e5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tid",
+              "name": "trade_id",
+              "value": "={{ $json.body.trade_id }}",
+              "type": "string"
+            },
+            {
+              "id": "durl",
+              "name": "document_url",
+              "value": "={{ $json.body.document_url }}",
+              "type": "string"
+            },
+            {
+              "id": "dtype",
+              "name": "document_type",
+              "value": "={{ $json.body.document_type }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "233ce172-60fe-4c92-9d79-ce61edd96a7b",
+      "name": "Edit Fields — Doc Meta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__OCR / Document Extraction service URL__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"document_url\": $json.document_url, \"document_type\": $json.document_type } }}",
+        "options": {}
+      },
+      "id": "aa8cac74-c55d-4955-a0b7-f7d6fe0466d0",
+      "name": "HTTP — OCR / Document Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Document Verification / LLM service URL__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"extracted\": $json.extracted, \"document_type\": $(\"Edit Fields — Doc Meta\").item.json.document_type } }}",
+        "options": {}
+      },
+      "id": "e239de75-ddfd-4b6b-b560-643f73221db2",
+      "name": "HTTP — Document Verification (LLM)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "5b44c583-e9ab-4a33-b37a-374074cdd756",
+      "name": "Merge — Docs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM documents WHERE trade_id = $1",
+        "options": {
+          "queryReplacement": "={{ $json.trade_id }}"
+        }
+      },
+      "id": "5a2335c5-ba32-42c4-8902-6e0d8f360831",
+      "name": "Postgres — Fetch Trade Docs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const verified = $('HTTP — Document Verification (LLM)').first().json.extracted || {};\nconst onFile = $('Postgres — Fetch Trade Docs').first().json || {};\n\nconst mismatches = [];\nfor (const key of ['hs_code', 'quantity', 'value']) {\n  if (onFile[key] !== undefined && String(verified[key]) !== String(onFile[key])) {\n    mismatches.push({ field: key, document: verified[key], expected: onFile[key] });\n  }\n}\n\nreturn [{ json: {\n  trade_id: $('Edit Fields — Doc Meta').first().json.trade_id,\n  document_url: $('Edit Fields — Doc Meta').first().json.document_url,\n  extracted: verified,\n  inconsistency: mismatches.length > 0,\n  mismatches,\n} }];"
+      },
+      "id": "e8570b87-22ed-4116-b5ba-e923917b63ac",
+      "name": "Code — Compare Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "inc",
+              "leftValue": "={{ $json.inconsistency }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6cf12cf3-ddf1-457b-89ef-abc9f2b1470f",
+      "name": "IF — Inconsistency?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO document_verifications (trade_id, status, mismatches, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $json.trade_id }},INCONSISTENT,{{ JSON.stringify($json.mismatches) }}"
+        }
+      },
+      "id": "7e4ba09f-8af4-4d3d-bff5-ae6977c4794c",
+      "name": "Postgres — Save Doc Alert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1568,
+        448
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"INCONSISTENT\", \"mismatches\": $(\"Code — Compare Fields\").item.json.mismatches } }}",
+        "options": {}
+      },
+      "id": "6d87fcfd-6f35-4c45-8efc-435d5d3dbef0",
+      "name": "Respond — Document Alert",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1792,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "value": "={{ JSON.stringify($json.extracted) }}",
+        "dataPropertyName": "document_hash"
+      },
+      "id": "6753c6c3-5ee7-4f0a-8dcc-f5f391855ce8",
+      "name": "Crypto — SHA-256 Hash",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Blockchain / Storage service URL (anchor document hash on EVM testnet)__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"rpc_url\": \"<<RPC_URL>>\", \"contract_address\": \"<<REGISTRY_CONTRACT_ADDRESS>>\", \"trade_id\": $json.trade_id, \"document_hash\": $json.document_hash } }}",
+        "options": {}
+      },
+      "id": "6cb40792-b26e-49f2-b6ff-d085e690c367",
+      "name": "HTTP — Blockchain Anchor (TESTNET)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1792,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO blockchain_events (trade_id, event_type, document_hash, tx_hash, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $(\"Code — Compare Fields\").item.json.trade_id }},DOCUMENT_ANCHOR,{{ $(\"Crypto — SHA-256 Hash\").item.json.document_hash }},{{ $json.tx_hash }}"
+        }
+      },
+      "id": "da9d76a6-87ea-4985-8c11-02545016cdf8",
+      "name": "Postgres — Save Doc Hash",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2016,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"VERIFIED\", \"document_hash\": $(\"Crypto — SHA-256 Hash\").item.json.document_hash, \"tx_hash\": $(\"HTTP — Blockchain Anchor (TESTNET)\").item.json.tx_hash } }}",
+        "options": {}
+      },
+      "id": "d9bf142c-499e-42d8-b88b-afc0da25dfa2",
+      "name": "Respond — Document Verified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2240,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "f3018b92-6c75-4fe0-945a-8930d5282967",
+      "name": "Schedule — Poll Shipments",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM escrow_contracts WHERE status IN ('FUNDED','LOCKED')",
+        "options": {}
+      },
+      "id": "7acea25e-03c7-4ae8-b847-71f7ef1246b9",
+      "name": "Postgres — Get Active Escrows",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "<__PLACEHOLDER_VALUE__Shipment Tracking API endpoint (e.g. carrier/aggregator tracking API)__>",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tracking_number",
+              "value": "={{ $json.tracking_number }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "32e66dc4-a7c4-43d3-bbe7-d264e2cf06cb",
+      "name": "HTTP — Shipment Tracking API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = ($json.status || '').toLowerCase();\nlet milestone = 'UNKNOWN';\nif (raw.includes('deliver') || raw.includes('receiv')) milestone = 'RECEIVED';\nelse if (raw.includes('transit')) milestone = 'IN_TRANSIT';\nelse if (raw.includes('dispatch') || raw.includes('pickup')) milestone = 'DISPATCHED';\n\nconst events = $json.events || [];\nreturn { json: {\n  tracking_number: $json.tracking_number,\n  milestone,\n  dispatched: events.includes('dispatched'),\n  received: events.includes('received') || milestone === 'RECEIVED',\n} };"
+      },
+      "id": "5c792d87-2150-4afd-8201-47bdb6f6c885",
+      "name": "Code — Normalize Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO shipment_events (tracking_number, milestone, dispatched, received, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $json.tracking_number }},{{ $json.milestone }},{{ $json.dispatched }},{{ $json.received }}"
+        }
+      },
+      "id": "77c2c0f6-dde4-41de-bd57-338d32972698",
+      "name": "Postgres — Save Milestone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ec.escrow_id, ec.trade_id, bool_and(dv.status = 'VERIFIED') AS docs_verified, bool_or(d.dispute_active) AS dispute_active, bool_and(ec.inspection_ok) AS inspection_ok FROM escrow_contracts ec LEFT JOIN document_verifications dv ON dv.trade_id = ec.trade_id LEFT JOIN trades d ON d.trade_id = ec.trade_id WHERE ec.tracking_number = $1 GROUP BY ec.escrow_id, ec.trade_id",
+        "options": {
+          "queryReplacement": "={{ $(\"Code — Normalize Status\").item.json.tracking_number }}"
+        }
+      },
+      "id": "e4582ca1-f0d3-4be1-afbd-8dc736a05800",
+      "name": "Postgres — Get Escrow Conditions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1120,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "docs",
+              "leftValue": "={{ $json.docs_verified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "disp",
+              "leftValue": "={{ $json.dispute_active }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "insp",
+              "leftValue": "={{ $json.inspection_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "disp2",
+              "leftValue": "={{ $(\"Code — Normalize Status\").item.json.dispatched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "recv",
+              "leftValue": "={{ $(\"Code — Normalize Status\").item.json.received }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "76b210bc-b5b2-48cb-b80b-cc036c66dfa8",
+      "name": "IF — Conditions Met?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "<__PLACEHOLDER_VALUE__Ethereum / EVM Testnet smart-contract service URL (release USDC escrow)__>",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"rpc_url\": \"<<RPC_URL>>\", \"contract_address\": \"<<ESCROW_CONTRACT_ADDRESS>>\", \"escrow_id\": $json.escrow_id } }}",
+        "options": {}
+      },
+      "id": "c708afde-87f7-4e12-a280-75bcf4c16879",
+      "name": "HTTP — Smart Contract: Release Escrow (TESTNET)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1568,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE escrow_contracts SET status = 'RELEASED', release_tx = $2 WHERE escrow_id = $1; UPDATE trades SET status = 'COMPLETED' WHERE trade_id = (SELECT trade_id FROM escrow_contracts WHERE escrow_id = $1)",
+        "options": {
+          "queryReplacement": "={{ $(\"Postgres — Get Escrow Conditions\").item.json.escrow_id }},{{ $json.tx_hash }}"
+        }
+      },
+      "id": "0dd52301-0fb6-4e1d-8c1a-0bbcbbeaa24a",
+      "name": "Postgres — Update Trade COMPLETED",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1792,
+        864
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE escrow_contracts SET status = 'LOCKED' WHERE escrow_id = $1",
+        "options": {
+          "queryReplacement": "={{ $json.escrow_id }}"
+        }
+      },
+      "id": "52682dec-3e94-45ef-9d82-4cf954604d78",
+      "name": "Postgres — Escrow LOCKED",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1568,
+        1056
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2
+            }
+          ]
+        }
+      },
+      "id": "48bbe375-44d9-49a9-856b-1a3a29df9546",
+      "name": "Schedule — Daily Ingest",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "<__PLACEHOLDER_VALUE__UN Comtrade API endpoint (bulk/periodic pull)__>",
+        "options": {}
+      },
+      "id": "15e259d2-fe01-4e91-93ec-a4baa4c9609d",
+      "name": "HTTP — UN Comtrade (Ingest)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "url": "<__PLACEHOLDER_VALUE__World Bank WITS API endpoint__>",
+        "options": {}
+      },
+      "id": "87138523-c466-4d6e-8552-b6a2a9ae5483",
+      "name": "HTTP — WITS Trade Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const comtrade = $('HTTP — UN Comtrade (Ingest)').first().json;\nconst wits = $('HTTP — WITS Trade Data').first().json;\nreturn [{ json: {\n  source_count: 2,\n  comtrade_rows: comtrade.rows || 0,\n  wits_rows: wits.rows || 0,\n  ingested_at: new Date().toISOString(),\n} }];"
+      },
+      "id": "f8f8fe1b-575a-489d-aa95-648de3b86bcf",
+      "name": "Code — Normalize Trade Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO trade_data_ingest (comtrade_rows, wits_rows, ingested_at) VALUES ($1, $2, NOW()) RETURNING id",
+        "options": {
+          "queryReplacement": "={{ $json.comtrade_rows }},{{ $json.wits_rows }}"
+        }
+      },
+      "id": "9aba4fcb-0e05-4932-a7f1-22b491f668f8",
+      "name": "Postgres — Store Trade Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        1280
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "tIXFXX70DfuGXag5",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 1 — AI TRADE INTELLIGENCE\nWebhook → normalize → HS code → Comtrade → market / matching / risk models → Compliance RAG → aggregate score → store → respond.\n**Purple = AI/ML** · ML models run externally (Python/FastAPI).",
+        "height": 248,
+        "width": 268,
+        "color": 4
+      },
+      "id": "259fe664-9cba-4c82-9331-c185156bb776",
+      "name": "Section 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 — TRADE + CRYPTO ESCROW\nBuyer accepts → fetch counterparty → trade service → smart contract creates USDC escrow (EVM TESTNET) → funds locked → store contract.\n**Green = Escrow** · escrow rules enforced by the smart contract, not n8n.",
+        "height": 264,
+        "width": 268,
+        "color": 3
+      },
+      "id": "a53e2cd3-ac22-4ec5-a617-23351043e300",
+      "name": "Section 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3 — DOCUMENT VERIFICATION + BLOCKCHAIN\nUpload → OCR + LLM verify → compare with stored docs → IF inconsistent: alert; else SHA-256 hash → anchor on EVM TESTNET → store tx.\n**Cyan = Blockchain/Documents** · chain proves hash integrity, not physical shipment contents.",
+        "height": 280,
+        "width": 300,
+        "color": 5
+      },
+      "id": "dc544429-3e35-4ab3-84d0-8c8bd43f0eab",
+      "name": "Section 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4 — SHIPMENT VERIFICATION + SETTLEMENT\nSchedule → active escrows → shipment tracking API → normalize milestone → store → fetch conditions → IF all met: smart contract releases escrow + trade COMPLETED; else escrow stays LOCKED.\n**Yellow = Shipment / Dark green = Settlement** · smart contract performs final release.",
+        "height": 312,
+        "width": 300,
+        "color": 6
+      },
+      "id": "ccb82a73-52e6-462b-baa0-cb81931e43f4",
+      "name": "Section 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5 — TRADE DATA INGESTION\nDaily schedule → UN Comtrade + WITS pulls → normalize → store historical/current trade data for the ML system.\n**Blue = Data** · feeds Section 1 models.",
+        "height": 216,
+        "width": 300,
+        "color": 7
+      },
+      "id": "913a8ed2-2f3a-45cb-a0e5-b70f449b430e",
+      "name": "Section 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        1232
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook — Analyze Trade": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields — Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields — Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP — HS Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — HS Classifier": {
+      "main": [
+        [
+          {
+            "node": "HTTP — UN Comtrade API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — UN Comtrade API": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Market Opportunity Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Market Opportunity Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Counterparty Matching Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Counterparty Matching Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Counterparty Risk Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Counterparty Risk Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Compliance RAG API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Compliance RAG API": {
+      "main": [
+        [
+          {
+            "node": "Code — Aggregate Trade Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Aggregate Trade Score": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Save Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Save Analysis": {
+      "main": [
+        [
+          {
+            "node": "Respond — Trade Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Create Trade": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Fetch Counterparty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Fetch Counterparty": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Trade Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Trade Service": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Smart Contract: Create Escrow (TESTNET)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Smart Contract: Create Escrow (TESTNET)": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Save Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Save Contract": {
+      "main": [
+        [
+          {
+            "node": "Respond — Trade Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Document Uploaded": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields — Doc Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields — Doc Meta": {
+      "main": [
+        [
+          {
+            "node": "HTTP — OCR / Document Extraction",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres — Fetch Trade Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — OCR / Document Extraction": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Document Verification (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Document Verification (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Merge — Docs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge — Docs": {
+      "main": [
+        [
+          {
+            "node": "Code — Compare Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Fetch Trade Docs": {
+      "main": [
+        [
+          {
+            "node": "Merge — Docs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code — Compare Fields": {
+      "main": [
+        [
+          {
+            "node": "IF — Inconsistency?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Inconsistency?": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Save Doc Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crypto — SHA-256 Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Save Doc Alert": {
+      "main": [
+        [
+          {
+            "node": "Respond — Document Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crypto — SHA-256 Hash": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Blockchain Anchor (TESTNET)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Blockchain Anchor (TESTNET)": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Save Doc Hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Save Doc Hash": {
+      "main": [
+        [
+          {
+            "node": "Respond — Document Verified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule — Poll Shipments": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Get Active Escrows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Get Active Escrows": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Shipment Tracking API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Shipment Tracking API": {
+      "main": [
+        [
+          {
+            "node": "Code — Normalize Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Normalize Status": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Save Milestone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Save Milestone": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Get Escrow Conditions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Get Escrow Conditions": {
+      "main": [
+        [
+          {
+            "node": "IF — Conditions Met?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Conditions Met?": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Smart Contract: Release Escrow (TESTNET)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres — Escrow LOCKED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Smart Contract: Release Escrow (TESTNET)": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Update Trade COMPLETED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule — Daily Ingest": {
+      "main": [
+        [
+          {
+            "node": "HTTP — UN Comtrade (Ingest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — UN Comtrade (Ingest)": {
+      "main": [
+        [
+          {
+            "node": "HTTP — WITS Trade Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — WITS Trade Data": {
+      "main": [
+        [
+          {
+            "node": "Code — Normalize Trade Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Normalize Trade Data": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Store Trade Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a45168a1-4626-4848-bed2-cbc979dfb203",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bc2576045a6147a40705d5306c338bb91813af42933e05866fadfd5e2a5cb83f"
+  },
+  "nodeGroups": [],
+  "id": "v5MePyK4JZuNQynu",
+  "tags": []
+}

@@ -1,0 +1,837 @@
+{
+  "name": "GlobeXAI — Master Trade Automation OS (Zero-SQL)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🌐 GLOBEX AI — MASTER TRADE AUTOMATION WORKFLOW\n\n**ZERO-SQL OPERATION:**\nAll 5 business workflows operate 100% in-memory with live FastAPI ML connectors. No PostgreSQL, Supabase, or external database credentials needed.\n\n**5 INTEGRATED SUB-PIPELINES:**\n1. 🧠 **AI Trade Intelligence & Anomaly Engine** (`POST /webhook/analyze-trade` & `/webhook/test-trade-analysis`)\n2. 📄 **Document OCR & Compliance Verification** (`POST /webhook/document-uploaded`)\n3. 🤝 **Marketplace Institutional Buyer Matcher** (`POST /webhook/marketplace-match`)\n4. 🔐 **Trade Lifecycle & Escrow Vault Creation** (`POST /webhook/create-trade`)\n5. 🚢 **Maritime Tracking & Vessel Geofencing** (`POST /webhook/track-shipment`)\n\n**MODELS CONNECTED:**\n- `3yr Moving-Average Forecaster` (demand MT & expected FOB price $/kg — walk-forward backtested against a Dual-Head GRU, which was 2x worse and is disabled; see reports/production/phase4b_outputs)\n- `XGBoost Anomaly Detector` + `Unsupervised IsolationForest Screen` (historical trade deviations; two separate, never-blended signals — see src/trade_anomaly/unsupervised_screen.py)\n- `Counterparty Risk Profiler` (composite trust & dispute scoring; real screening against 31,629 OFAC/UN/UK/EU sanctioned entities when DB-backed)\n- `CEPA & Tariff Rules Engine` (documented bilateral agreements; real WITS TRAINS MFN tariff lookup for undocumented corridors)\n- `Catalogue HS Code Classifier` (HS6 international tariff resolution)\n- `Document OCR Engine` (cross-border bill of lading & invoice parser)",
+        "height": 540,
+        "width": 480,
+        "color": 4
+      },
+      "id": "sticky-master-guide",
+      "name": "README — Master Workflow Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -500,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-trade-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-trade-test",
+      "name": "Webhook — Test Trade Analysis",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        240
+      ],
+      "webhookId": "globex-master-test-wh-001"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyze-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-trade-prod",
+      "name": "Webhook — Analyze Trade (Live)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        420
+      ],
+      "webhookId": "globex-master-prod-wh-001"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "product",
+              "value": "={{ $json.body.product ?? $json.product ?? $json.body.productName ?? 'Basmati Rice' }}",
+              "type": "string"
+            },
+            {
+              "id": "m2",
+              "name": "origin_country",
+              "value": "={{ $json.body.origin_country ?? $json.origin_country ?? $json.body.originCountry ?? 'IND' }}",
+              "type": "string"
+            },
+            {
+              "id": "m3",
+              "name": "destination_country",
+              "value": "={{ $json.body.destination_country ?? $json.destination_country ?? $json.body.destinationCountry ?? 'ARE' }}",
+              "type": "string"
+            },
+            {
+              "id": "m4",
+              "name": "quantity_kg",
+              "value": "={{ Number($json.body.quantity_kg ?? $json.quantity_kg ?? $json.body.quantity ?? 50000) }}",
+              "type": "number"
+            },
+            {
+              "id": "m5",
+              "name": "target_price_usd",
+              "value": "={{ Number($json.body.target_price_usd ?? $json.target_price_usd ?? $json.body.targetPriceUSD ?? 1100) }}",
+              "type": "number"
+            },
+            {
+              "id": "m6",
+              "name": "certifications",
+              "value": "={{ $json.body.certifications ?? $json.certifications ?? ['ISO 22000', 'FSSAI', 'APEDA', 'Halal'] }}",
+              "type": "array"
+            },
+            {
+              "id": "m7",
+              "name": "trade_flow",
+              "value": "={{ $json.body.trade_flow ?? $json.trade_flow ?? 'Export' }}",
+              "type": "string"
+            },
+            {
+              "id": "m8",
+              "name": "regime",
+              "value": "={{ $json.body.regime ?? $json.regime ?? 'balanced' }}",
+              "type": "string"
+            },
+            {
+              "id": "m9",
+              "name": "top_n",
+              "value": "={{ Number($json.body.top_n ?? 5) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-master-normalize",
+      "name": "Set — Normalize Trade Intake",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        280,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/hs-code",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"product\": $json.product, \"origin\": $json.origin_country, \"destination\": $json.destination_country }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-hs",
+      "name": "HTTP — HS Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/market-opportunity",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"product\": $('Set — Normalize Trade Intake').item.json.product, \"quantity_kg\": $('Set — Normalize Trade Intake').item.json.quantity_kg, \"regime\": $('Set — Normalize Trade Intake').item.json.regime, \"top_n\": $('Set — Normalize Trade Intake').item.json.top_n }) }}",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-market-opp",
+      "name": "HTTP — GRU Market Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/trade-anomaly/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"trade_flow\": $('Set — Normalize Trade Intake').item.json.trade_flow, \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"partner_country\": $('Set — Normalize Trade Intake').item.json.destination_country, \"trade_value_usd\": Number($('Set — Normalize Trade Intake').item.json.target_price_usd * $('Set — Normalize Trade Intake').item.json.quantity_kg / 1000 || 550000), \"quantity\": Number($('Set — Normalize Trade Intake').item.json.quantity_kg), \"quantity_unit\": \"kg\", \"period\": \"202512\", \"transaction_count\": 1 }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-anomaly",
+      "name": "HTTP — XGBoost Trade Anomaly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        940,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/counterparty-match",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"destination_country\": $('Set — Normalize Trade Intake').item.json.destination_country, \"quantity_kg\": $('Set — Normalize Trade Intake').item.json.quantity_kg, \"certifications\": $('Set — Normalize Trade Intake').item.json.certifications, \"top_n\": 5 }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-cp-match",
+      "name": "HTTP — Counterparty Matcher",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1160,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/counterparty-risk",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"organization_id\": $('HTTP — Counterparty Matcher').item.json.counterparties?.[0]?.organization_id ?? 'ORG-IND-EXP-088', \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630) }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-risk",
+      "name": "HTTP — Trade Risk Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1380,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/compliance/rag-analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hs6\": Number($('HTTP — HS Classifier').item.json.hs6 ?? 100630), \"hs_code_str\": $('HTTP — HS Classifier').item.json.hs_code_formatted, \"origin_country\": $('Set — Normalize Trade Intake').item.json.origin_country, \"destination_country\": $('Set — Normalize Trade Intake').item.json.destination_country, \"certifications\": $('Set — Normalize Trade Intake').item.json.certifications, \"trade_value_usd\": Number($('Set — Normalize Trade Intake').item.json.target_price_usd * $('Set — Normalize Trade Intake').item.json.quantity_kg / 1000 || 550000) }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-compliance",
+      "name": "HTTP — CEPA Compliance RAG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1600,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Master Multi-Model Trade Synthesizer (Zero-SQL In-Memory Engine)\n// Composite-scoring weights and PROCEED/REVIEW/AVOID thresholds now live\n// server-side at POST /compliance/trade-synthesis, not here. This node only\n// gathers upstream data and calls it. Previously duplicated as unversioned\n// inline JS (GitHub issue #5). Honest aggregation still applies: a missing\n// or failed upstream dimension is reported as missing by that endpoint,\n// never silently replaced with a fabricated number.\nconst norm = $('Set — Normalize Trade Intake').first().json;\nconst hs = $('HTTP — HS Classifier').first().json;\nconst mkt = $('HTTP — GRU Market Opportunity').first().json;\nconst anomaly = $('HTTP — XGBoost Trade Anomaly').first().json;\nconst cpMatch = $('HTTP — Counterparty Matcher').first().json;\nconst cpRisk = $('HTTP — Trade Risk Model').first().json;\nconst comp = $('HTTP — CEPA Compliance RAG').first().json;\n\nconst hs6 = hs?.hs6 ?? null;\nconst marketScore = mkt?.summary_table?.[0]?.opportunity_score ?? mkt?.top_recommendations?.[0]?.opportunity_score ?? null;\nconst destinationRank = mkt?.summary_table?.[0]?.final_rank ?? null;\nconst anomalyScore = anomaly?.risk?.anomaly_score ?? null;\nconst riskLevel = anomaly?.risk?.risk_level ?? null;\nconst cpMatchRaw = cpMatch?.counterparties?.[0] ?? null;\nconst cpMatchScore = cpMatchRaw?.match_score != null ? cpMatchRaw.match_score * 100 : null;\nconst cpTrustScore = cpRisk?.risk?.trust_score ?? null;\nconst complianceScore = typeof comp?.compliance_score === 'number' ? comp.compliance_score : null;\nconst dutySavedUSD = comp?.tariff?.duty_savings_usd ?? null;\nconst contractValueUSD = Number(norm.target_price_usd * norm.quantity_kg / 1000) || null;\n\nconst synthesis = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'http://host.docker.internal:8000/compliance/trade-synthesis',\n  body: {\n    hs6,\n    market_score: marketScore,\n    anomaly_score: anomalyScore,\n    risk_level: riskLevel,\n    counterparty_match_score: cpMatchScore,\n    counterparty_trust_score: cpTrustScore,\n    compliance_score: complianceScore,\n  },\n  json: true,\n});\n\nconst missing = synthesis.missing_dimensions;\nconst compositeScore = synthesis.composite_score;\nconst recommendation = synthesis.recommendation;\nconst status = synthesis.status;\n\nconst tradeRecord = contractValueUSD ? {\n  trade_id: `TRD-${norm.origin_country}-${norm.destination_country}-${Math.round(contractValueUSD / 1000)}K`,\n  created_at: new Date().toISOString(),\n  status: 'ANALYZED',\n  escrow_required_usdc: contractValueUSD,\n  overall_score: compositeScore,\n  recommendation\n} : null;\n\nreturn [{\n  json: {\n    status,\n    missing_dimensions: missing,\n    workflow_name: 'GlobeX AI Master Trade Intelligence Engine',\n    execution_timestamp: new Date().toISOString(),\n    trade_record: tradeRecord,\n    trade_corridor: `${norm.origin_country} ➔ ${norm.destination_country}`,\n    commodity: norm.product,\n    hs_classification: hs6 !== null ? {\n      hs6,\n      formatted: hs?.hs_code_formatted ?? null,\n      description: hs?.product_description ?? null,\n      confidence: hs?.confidence ?? 0\n    } : null,\n    market_opportunity: marketScore !== null ? {\n      destination: norm.destination_country,\n      rank: destinationRank,\n      score: marketScore,\n      top_destinations: mkt?.top_recommendations?.slice(0, 3) ?? []\n    } : null,\n    trade_anomaly: anomalyScore !== null ? {\n      score: anomalyScore,\n      risk_level: riskLevel,\n      anomaly_type: anomaly?.classification?.anomaly_type ?? null,\n      signals: anomaly?.signals ?? []\n    } : null,\n    counterparty_intelligence: cpMatchScore !== null ? {\n      top_exporter: cpMatchRaw?.name ?? null,\n      match_score: cpMatchScore,\n      trust_score: cpTrustScore,\n      risk_level: cpRisk?.risk?.risk_level ?? null,\n      counterparty_pool_count: cpMatch?.counterparties?.length ?? 0\n    } : null,\n    compliance_and_tariffs: complianceScore !== null ? {\n      trade_agreement: comp?.tariff?.agreement ?? null,\n      preferential_duty: comp?.tariff?.preferential_rate_pct != null ? `${comp.tariff.preferential_rate_pct}%` : null,\n      standard_mfn_duty: comp?.tariff?.standard_mfn_rate_pct != null ? `${comp.tariff.standard_mfn_rate_pct}%` : null,\n      duty_savings_usd: dutySavedUSD,\n      mandatory_documents: comp?.required_documents ?? []\n    } : null,\n    overall_trade_score: compositeScore,\n    recommendation,\n    n8n_execution_passed: missing.length === 0\n  }\n}];\n"
+      },
+      "id": "code-master-aggregate",
+      "name": "Code — Synthesize All Models",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Code — Synthesize All Models').item.json) }}",
+        "options": {}
+      },
+      "id": "respond-master-trade",
+      "name": "Respond — Trade Analysis JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2040,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-uploaded",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-doc",
+      "name": "Webhook — Document Uploaded",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        680
+      ],
+      "webhookId": "globex-doc-upload-master-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/documents/ocr-extract",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"document_url\": $json.body.document_url ?? 'https://storage.globex.ai/docs/trade_doc.pdf', \"document_type\": $json.body.document_type ?? 'COMMERCIAL_INVOICE' }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-doc-ocr",
+      "name": "HTTP — Document OCR Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        280,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/compliance/rag-analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hs6\": Number($('Webhook — Document Uploaded').item.json.body?.hs6 ?? 100630), \"origin_country\": $('Webhook — Document Uploaded').item.json.body?.origin_country ?? 'IND', \"destination_country\": $('Webhook — Document Uploaded').item.json.body?.destination_country ?? 'ARE' }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-doc-comp",
+      "name": "HTTP — Doc Compliance Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Synthesize Document Verification Verdict (Zero-SQL)\n// Decision logic (OCR-liveness check, compliance threshold, blocking flags)\n// now lives server-side at POST /compliance/doc-verdict, not here. This node\n// only gathers upstream data and calls it. Previously this exact decision\n// tree was duplicated as unversioned, untested inline JS (GitHub issue #5).\nconst docBody = $('Webhook — Document Uploaded').first().json.body || {};\nconst ocr = $('HTTP — Document OCR Extract').first().json;\nconst comp = $('HTTP — Doc Compliance Check').first().json;\n\nconst complianceScore = typeof comp.compliance_score === 'number' ? comp.compliance_score : null;\nconst complianceFlags = Array.isArray(comp.flags) ? comp.flags : [];\n\nconst verdict = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'http://host.docker.internal:8000/compliance/doc-verdict',\n  body: {\n    ocr_status: ocr.status ?? null,\n    ocr_data_source: ocr.data_source ?? null,\n    compliance_score: complianceScore,\n    compliance_flags: complianceFlags,\n  },\n  json: true,\n});\n\nreturn [{\n  json: {\n    status: verdict.status,\n    workflow: 'Document OCR & Compliance Verification',\n    verification_id: `VER-${Date.now().toString(36).toUpperCase()}`,\n    document_type: docBody.document_type || 'COMMERCIAL_INVOICE',\n    ocr_status: ocr.status || 'UNKNOWN',\n    ocr_data_source: ocr.data_source || 'unknown',\n    compliance_score: complianceScore,\n    compliance_flags: complianceFlags,\n    tariff_framework: comp.tariff?.agreement || null,\n    mandatory_docs: comp.required_documents || [],\n    cleared_for_shipment: verdict.cleared_for_shipment,\n    verified_at: new Date().toISOString()\n  }\n}];\n"
+      },
+      "id": "code-master-doc-synth",
+      "name": "Code — Synthesize Doc Verdict",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Code — Synthesize Doc Verdict').item.json) }}",
+        "options": {}
+      },
+      "id": "respond-master-doc",
+      "name": "Respond — Doc Verification JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        940,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "marketplace-match",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-market-match",
+      "name": "Webhook — Marketplace Match",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        920
+      ],
+      "webhookId": "globex-market-match-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/marketplace/match-buyers",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"commodity\": $json.body.commodity ?? 'Basmati Rice', \"quantity\": Number($json.body.quantity ?? 500), \"unit\": $json.body.unit ?? 'MT', \"destinationCountry\": $json.body.destinationCountry ?? 'UAE' }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-market-match",
+      "name": "HTTP — Demand Buyer Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        280,
+        920
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Synthesize Marketplace Institutional Buyer Matches\n// Real counts only: candidateCount/strongMatchCount now come from the\n// backend's actual evaluated pool (see src/api/marketplace_api.py — this\n// used to be hardcoded 7420/142, disconnected from any real data).\nconst rawMatch = $('HTTP — Demand Buyer Match').first().json;\nconst hasResult = rawMatch && Array.isArray(rawMatch.recommendations);\n\nreturn [{\n  json: {\n    status: hasResult ? 'SUCCESS' : 'FAILED',\n    workflow: 'Marketplace Buyer Demand Matcher',\n    query: rawMatch?.query ?? null,\n    candidate_count: rawMatch?.candidateCount ?? null,\n    strong_matches: rawMatch?.strongMatchCount ?? null,\n    top_buyers: rawMatch?.recommendations ?? [],\n    data_source: rawMatch?.data_source ?? null,\n    matched_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-master-market-synth",
+      "name": "Code — Synthesize Buyers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        920
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Code — Synthesize Buyers').item.json) }}",
+        "options": {}
+      },
+      "id": "respond-master-market",
+      "name": "Respond — Buyer Matches JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        920
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-create-trade",
+      "name": "Webhook — Create Trade & Escrow",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        1160
+      ],
+      "webhookId": "globex-create-trade-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Trade Creation Response (Zero-SQL demo path)\n// Escrow/blockchain integration is DEFERRED — see docs/roadmap/escrow_phase.md\n// and the blockchain integration track. This node must never fabricate a\n// vault address or claim on-chain state that doesn't exist (a real bug found\n// here: it used to generate `0x` + Math.random() hex digits as a fake\n// contract address). Real trade persistence goes through POST\n// /api/v1/trades once the frontend/n8n caller is wired to it; this response\n// shape is kept for backward compatibility with existing workflow consumers.\nconst b = $('Webhook — Create Trade & Escrow').first().json.body || {};\nconst tradeId = `TRD-${(b.origin_country || 'IND')}-${(b.destination_country || 'ARE')}-${Math.round((b.contract_value_usd || 550000) / 1000)}K`;\n\nreturn [{\n  json: {\n    status: 'TRADE_CREATED',\n    trade_id: tradeId,\n    escrow_vault: {\n      status: 'NOT_IMPLEMENTED_DEFERRED',\n      note: 'Financial escrow is not implemented. No vault address, no on-chain custody. See docs/roadmap/escrow_phase.md.',\n      collateral_token: 'USDC',\n      collateral_amount_usd: b.contract_value_usd || 550000,\n      settlement_condition: 'SGS_INSPECTION_PASSED'\n    },\n    milestones: [\n      { milestone: 'ESCROW_FUNDED', percentage: 100, status: 'NOT_APPLICABLE_ESCROW_DEFERRED' },\n      { milestone: 'BILL_OF_LADING_VERIFIED', percentage: 0, status: 'LOCKED' },\n      { milestone: 'CUSTOMS_RELEASE', percentage: 0, status: 'LOCKED' },\n      { milestone: 'FINAL_SETTLEMENT', percentage: 100, status: 'LOCKED' }\n    ],\n    created_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-master-escrow-vault",
+      "name": "Code — Initiate Escrow Vault",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        1160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Code — Initiate Escrow Vault').item.json) }}",
+        "options": {}
+      },
+      "id": "respond-master-trade-create",
+      "name": "Respond — Trade & Escrow JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        500,
+        1160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "listing-published",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-master-listing-published",
+      "name": "Webhook — Listing Published",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        40,
+        1400
+      ],
+      "webhookId": "globex-listing-published-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/marketplace/match-buyers",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"commodity\": $json.body.product_name ?? 'Basmati Rice', \"quantity\": Number($json.body.quantity_available ?? 500), \"unit\": $json.body.unit ?? 'MT', \"destinationCountry\": $json.body.destinationCountry ?? 'UAE' }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "http-master-listing-buyer-match",
+      "name": "HTTP — Buyer Match For New Listing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        280,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// New Listing Published — Buyer Notification Pipeline\n// This node runs after a real POST /api/v1/listings insert (see\n// src/api/trades_api.py::create_listing, which calls this webhook\n// fire-and-forget). It does not persist anything itself — the DB write\n// already happened before this workflow ran — it only surfaces candidate\n// buyers for the newly published listing so the exporter isn't left\n// waiting on a marketplace refresh to find out if there's demand.\nconst listing = $('Webhook — Listing Published').first().json.body || {};\nconst match = $('HTTP — Buyer Match For New Listing').first().json;\nconst hasResult = match && Array.isArray(match.recommendations);\n\nreturn [{\n  json: {\n    status: 'LISTING_PUBLISHED',\n    listing_id: listing.id ?? null,\n    product_name: listing.product_name ?? null,\n    candidate_buyer_count: match?.candidateCount ?? null,\n    strong_matches: match?.strongMatchCount ?? null,\n    top_buyers: hasResult ? match.recommendations.slice(0, 5) : [],\n    data_source: match?.data_source ?? null,\n    notified_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-master-listing-published-synth",
+      "name": "Code — Synthesize Listing Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($('Code — Synthesize Listing Notification').item.json) }}",
+        "options": {}
+      },
+      "id": "respond-master-listing-published",
+      "name": "Respond — Listing Published JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        1400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook — Test Trade Analysis": {
+      "main": [
+        [
+          {
+            "node": "Set — Normalize Trade Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Analyze Trade (Live)": {
+      "main": [
+        [
+          {
+            "node": "Set — Normalize Trade Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set — Normalize Trade Intake": {
+      "main": [
+        [
+          {
+            "node": "HTTP — HS Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — HS Classifier": {
+      "main": [
+        [
+          {
+            "node": "HTTP — GRU Market Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — GRU Market Opportunity": {
+      "main": [
+        [
+          {
+            "node": "HTTP — XGBoost Trade Anomaly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — XGBoost Trade Anomaly": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Counterparty Matcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Counterparty Matcher": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Trade Risk Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Trade Risk Model": {
+      "main": [
+        [
+          {
+            "node": "HTTP — CEPA Compliance RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — CEPA Compliance RAG": {
+      "main": [
+        [
+          {
+            "node": "Code — Synthesize All Models",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Synthesize All Models": {
+      "main": [
+        [
+          {
+            "node": "Respond — Trade Analysis JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Document Uploaded": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Document OCR Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Document OCR Extract": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Doc Compliance Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Doc Compliance Check": {
+      "main": [
+        [
+          {
+            "node": "Code — Synthesize Doc Verdict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Synthesize Doc Verdict": {
+      "main": [
+        [
+          {
+            "node": "Respond — Doc Verification JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Marketplace Match": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Demand Buyer Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Demand Buyer Match": {
+      "main": [
+        [
+          {
+            "node": "Code — Synthesize Buyers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Synthesize Buyers": {
+      "main": [
+        [
+          {
+            "node": "Respond — Buyer Matches JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Create Trade & Escrow": {
+      "main": [
+        [
+          {
+            "node": "Code — Initiate Escrow Vault",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Initiate Escrow Vault": {
+      "main": [
+        [
+          {
+            "node": "Respond — Trade & Escrow JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Listing Published": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Buyer Match For New Listing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Buyer Match For New Listing": {
+      "main": [
+        [
+          {
+            "node": "Code — Synthesize Listing Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Synthesize Listing Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond — Listing Published JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "globex-master-os-v1-0-0",
+  "id": "globex-master-trade-automation"
+}

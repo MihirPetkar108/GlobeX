@@ -1,0 +1,185 @@
+@import "./components/agent-elements/agent-ui.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --radius: 10px;
+
+    /* ── GLOBEX B2B Institutional Design Tokens — LIGHT ─────────────
+     * 4-Level Surface Hierarchy
+     * Level 0: App canvas          (#F7F8FA)
+     * Level 1: Default card/panel  (#FFFFFF, hairline border)
+     * Level 2: Raised/active card  (#FFFFFF, hairline-strong + shadow)
+     * Level 3: Recessed/input well (#EEF1F5)
+     * ─────────────────────────────────────────────────────────────── */
+
+    /* Surface levels */
+    --surface-0: #F7F8FA;
+    --surface-1: #FFFFFF;
+    --surface-2: #FFFFFF;
+    --surface-3: #EEF1F5;
+
+    --hairline: rgba(15, 23, 42, 0.08);
+    --hairline-strong: rgba(15, 23, 42, 0.14);
+
+    /* Brand */
+    --brand: #0F766E;
+    --brand-hover: #0D5F58;
+    --brand-subtle: rgba(15, 118, 110, 0.08);
+    --brand-teal: #0F766E;
+    --brand-teal-dark: #0D5F58;
+    --brand-cyan: #0284C7;
+    --brand-blue: #1D4ED8;
+
+    /* Semantic accent palette — retuned for WCAG AA contrast on white
+       (the old dark-theme values, e.g. amber #F59E0B, fail AA on #FFFFFF) */
+    --accent: #0284C7;
+    /* Active / in-transit / sky */
+    --accent-dim: rgba(2, 132, 199, 0.08);
+    --emerald: #0F9D6B;
+    /* Verified, completed, positive */
+    --emerald-dim: rgba(15, 157, 107, 0.08);
+    --amber: #B45309;
+    /* Review, discrepancy, warning */
+    --amber-dim: rgba(180, 83, 9, 0.08);
+    --red: #DC2626;
+    /* Error, rejected, disputed */
+    --red-dim: rgba(220, 38, 38, 0.08);
+
+    /* Status vocabulary — GlobeXAI_OneShot_Production_Pack/12_UI_COMPLIANCE_REQUIREMENTS.md */
+    --status-verified: var(--emerald);
+    --status-verified-bg: var(--emerald-dim);
+    --status-pending: #475569;
+    --status-pending-bg: rgba(71, 85, 105, 0.08);
+    --status-review: var(--amber);
+    --status-review-bg: var(--amber-dim);
+    --status-blocked: var(--red);
+    --status-blocked-bg: var(--red-dim);
+    --status-stale: #A16207;
+    --status-stale-bg: rgba(161, 98, 7, 0.08);
+    --status-unavailable: #94A3B8;
+    --status-unavailable-bg: rgba(148, 163, 184, 0.1);
+
+    /* Text hierarchy */
+    --text-primary: #0F172A;
+    /* Headings, primary values (Slate 900) */
+    --text-secondary: #475569;
+    /* Labels, descriptive text (Slate 600) */
+    --text-tertiary: #64748B;
+    /* Metadata, codes (Slate 500) */
+    --text-muted: #94A3B8;
+    /* Disabled, subtle captions (Slate 400) */
+
+    /* Legacy alias set — previously referenced across 8+ files and undefined
+       anywhere in the repo; defined here for the first time. */
+    --bg-app: var(--surface-0);
+    --bg-surface: var(--surface-1);
+    --bg-surface-subtle: var(--surface-2);
+    --bg-surface-muted: var(--surface-3);
+    --border-subtle: var(--hairline);
+    --border-default: var(--hairline);
+    --border-strong: var(--hairline-strong);
+    --error: var(--red);
+    --info-bg: var(--accent-dim);
+    --success-bg: var(--emerald-dim);
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--hairline);
+  }
+
+  body {
+    background-color: var(--surface-0);
+    color: var(--text-primary);
+    font-family: theme('fontFamily.sans');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+
+  /* Surface Containers */
+  .surface-0 {
+    background-color: var(--surface-0);
+  }
+
+  .surface-1 {
+    background-color: var(--surface-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+  }
+
+  .surface-2 {
+    background-color: var(--surface-2);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  /* Backward compatible utility classes */
+  .neo-glass-card {
+    background-color: var(--surface-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .neo-glass-card:hover {
+    border-color: var(--hairline-strong);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .glass-panel {
+    background-color: var(--surface-1);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+  }
+
+  .glass-panel-raised {
+    background-color: var(--surface-2);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-md);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+}
+
+/* Scrollbars */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.16) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.16);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+/* Deliberately dark hero band — the landing-page globe stays on a scoped dark
+   surface inside the light app (see TradeGlobe.tsx). Do not use elsewhere. */
+.surface-hero-dark {
+  background-color: #070A0E;
+  color: #F8FAFC;
+}

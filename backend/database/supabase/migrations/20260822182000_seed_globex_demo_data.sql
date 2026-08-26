@@ -5,10 +5,10 @@
 -- 1. USERS (100 rows)
 INSERT INTO public.users (id, auth_id, first_name, last_name, email, phone, account_type, platform_role, is_active, created_at, updated_at) VALUES
 ('00000001-0000-0000-0000-000000000001', NULL, 'Rajesh', 'Sharma', 'super.admin@globex.trade', '+919876543210', 'INTERNAL', 'SUPER_ADMIN', true, '2026-01-16T10:00:00+00:00', '2026-01-16T10:00:00+00:00'),
-('00000001-0000-0000-0000-000000000002', NULL, 'Vikram', 'Aditya', 'vikram.admin@globex.trade', '+919876543211', 'INTERNAL', 'ADMIN', true, '2026-01-17T10:00:00+00:00', '2026-01-17T10:00:00+00:00'),
-('00000001-0000-0000-0000-000000000003', NULL, 'Sarah', 'Jenkins', 'sarah.admin@globex.trade', '+14155552671', 'INTERNAL', 'ADMIN', true, '2026-01-18T10:00:00+00:00', '2026-01-18T10:00:00+00:00'),
-('00000001-0000-0000-0000-000000000004', NULL, 'Chen', 'Wei', 'chen.admin@globex.trade', '+8613800138000', 'INTERNAL', 'ADMIN', true, '2026-01-19T10:00:00+00:00', '2026-01-19T10:00:00+00:00'),
-('00000001-0000-0000-0000-000000000005', NULL, 'Elena', 'Rostova', 'elena.admin@globex.trade', '+442079460912', 'INTERNAL', 'ADMIN', true, '2026-01-20T10:00:00+00:00', '2026-01-20T10:00:00+00:00'),
+('00000001-0000-0000-0000-000000000002', NULL, 'Vikram', 'Aditya', 'vikram.admin@globex.trade', '+919876543211', 'INTERNAL', 'SUPER_ADMIN', true, '2026-01-17T10:00:00+00:00', '2026-01-17T10:00:00+00:00'),
+('00000001-0000-0000-0000-000000000003', NULL, 'Sarah', 'Jenkins', 'sarah.admin@globex.trade', '+14155552671', 'INTERNAL', 'SUPER_ADMIN', true, '2026-01-18T10:00:00+00:00', '2026-01-18T10:00:00+00:00'),
+('00000001-0000-0000-0000-000000000004', NULL, 'Chen', 'Wei', 'chen.admin@globex.trade', '+8613800138000', 'INTERNAL', 'SUPER_ADMIN', true, '2026-01-19T10:00:00+00:00', '2026-01-19T10:00:00+00:00'),
+('00000001-0000-0000-0000-000000000005', NULL, 'Elena', 'Rostova', 'elena.admin@globex.trade', '+442079460912', 'INTERNAL', 'SUPER_ADMIN', true, '2026-01-20T10:00:00+00:00', '2026-01-20T10:00:00+00:00'),
 ('00000001-0000-0000-0000-000000000006', NULL, 'Amit', 'Patel', 'amit.verify@globex.trade', '+919876543212', 'INTERNAL', 'VERIFICATION_OFFICER', true, '2026-01-21T10:00:00+00:00', '2026-01-21T10:00:00+00:00'),
 ('00000001-0000-0000-0000-000000000007', NULL, 'Maria', 'Garcia', 'maria.verify@globex.trade', '+34911234567', 'INTERNAL', 'VERIFICATION_OFFICER', true, '2026-01-22T10:00:00+00:00', '2026-01-22T10:00:00+00:00'),
 ('00000001-0000-0000-0000-000000000008', NULL, 'Priya', 'Nair', 'priya.compliance@globex.trade', '+919876543213', 'INTERNAL', 'COMPLIANCE_OFFICER', true, '2026-01-23T10:00:00+00:00', '2026-01-23T10:00:00+00:00'),

@@ -1,0 +1,329 @@
+{
+  "name": "GlobeXAI - Production Trade Automation OS v2 (Sequential)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## GLOBEX AI - Production Trade Automation OS v2 (Sequential)\n\nSequential linear chain - 0 parallel branches.\nWebhooks: globex-analyze-trade-v2 / globex-test-trade-v2",
+        "height": 340,
+        "width": 500,
+        "color": 4
+      },
+      "id": "sticky-v2-seq",
+      "name": "Architecture Guide - Sequential v2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-analyze-trade-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-prod-v2",
+      "name": "Webhook - Analyze Trade (Live)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        300
+      ],
+      "webhookId": "globex-prod-wh-v2-seq"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-test-trade-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-test-v2",
+      "name": "Webhook - Test Trade Analysis",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        160
+      ],
+      "webhookId": "globex-test-wh-v2-seq"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and normalize all incoming trade inputs\nvar body = $json.body || $json;\nvar product = body.product || body.productName || body.product_name || body.title || body.commodity || 'Basmati Rice';\nvar origin = String(body.origin_country || body.originCountry || body.origin || 'IND').toUpperCase().slice(0,3);\nvar destination = String(body.destination_country || body.destinationCountry || body.destination || 'ARE').toUpperCase().slice(0,3);\nvar quantity_kg = Number(body.quantity_kg || body.quantity || body.quantityKg || 50000);\nif (quantity_kg <= 0) quantity_kg = 50000;\nvar target_price_usd = Number(body.target_price_usd || body.targetPriceUSD || body.unitPriceUsd || 1100);\nvar trade_flow = body.trade_flow || body.tradeFlow || 'Export';\nvar regime = body.regime || 'balanced';\nvar certifications = body.certifications || [];\nvar correlation_id = 'globex_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);\nreturn [{ json: { product: product, origin_country: origin, destination_country: destination, quantity_kg: quantity_kg, target_price_usd: target_price_usd, trade_flow: trade_flow, regime: regime, certifications: certifications, correlation_id: correlation_id } }];"
+      },
+      "id": "code-validate",
+      "name": "Code - Validate + Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/hs-code",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"product\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"origin\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-hs",
+      "name": "HTTP - HS Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/market-opportunity",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"product\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"regime\": \"{{ $('Code - Validate + Normalize Input').item.json.regime }}\",\n  \"top_n\": 8\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "http-xgb",
+      "name": "HTTP - XGBoost Demand Forecaster",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/trade-anomaly/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trade_flow\": \"{{ $('Code - Validate + Normalize Input').item.json.trade_flow }}\",\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"partner_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }},\n  \"quantity\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"quantity_unit\": \"kg\",\n  \"period\": \"202608\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-anom",
+      "name": "HTTP - IsolationForest Anomaly Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/compliance/rag-analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"origin_country\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }}\n}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "http-rag",
+      "name": "HTTP - Compliance RAG Retriever",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/predict/counterparty-match",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"top_n\": 5\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-cp",
+      "name": "HTTP - Counterparty Match + Sanctions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/trade/generate-report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"product_query\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"origin_country\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }},\n  \"trade_flow\": \"{{ $('Code - Validate + Normalize Input').item.json.trade_flow }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-rpt",
+      "name": "HTTP - Multi-Model Report Synthesizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var inp  = $('Code - Validate + Normalize Input').item.json;\nvar hs   = $('HTTP - HS Classifier').item.json;\nvar xgb  = $('HTTP - XGBoost Demand Forecaster').item.json;\nvar anom = $('HTTP - IsolationForest Anomaly Engine').item.json;\nvar rag  = $('HTTP - Compliance RAG Retriever').item.json;\nvar cp   = $('HTTP - Counterparty Match + Sanctions').item.json;\nvar rpt  = $('HTTP - Multi-Model Report Synthesizer').item.json;\n\nvar stages = {\n  HS_CLASSIFIER:     hs,\n  DEMAND_FORECASTER: xgb,\n  ANOMALY_ENGINE:    anom,\n  COMPLIANCE_RAG:    rag,\n  COUNTERPARTY:      cp,\n  REPORT_SYNTHESIS:  rpt\n};\n\nvar errors = [];\nvar keys = Object.keys(stages);\nfor (var i = 0; i < keys.length; i++) {\n  var stage = keys[i];\n  var data = stages[stage];\n  if (data && (data.detail || data.error)) {\n    errors.push({\n      status: 'FAILED',\n      engine: 'n8n',\n      failed_stage: stage,\n      error: data.detail || data.error,\n      execution_id: 'n8n_exec_' + inp.correlation_id,\n      retryable: true\n    });\n  }\n}\n\nvar overallStatus = errors.length === 0 ? 'SUCCESS' : (errors.length < keys.length ? 'PARTIAL' : 'FAILED');\n\nreturn [{\n  json: {\n    status: overallStatus,\n    execution_id: 'n8n_exec_' + inp.correlation_id,\n    workflow: {\n      name: 'GlobeXAI Production Trade Automation OS v2 Sequential',\n      nodes_executed: 7,\n      duration_ms: Date.now() % 100000\n    },\n    input: inp,\n    results: {\n      hs_classification: hs,\n      market_opportunity: {\n        engine: 'XGBoost Quantile Residual Forecaster Q10/50/90',\n        top_recommendations: xgb.top_recommendations || [],\n        shap_attribution: xgb.shap_attribution || null,\n        raw: xgb\n      },\n      anomaly_risk: anom,\n      compliance_rag: rag,\n      counterparty: cp,\n      report: rpt\n    },\n    provenance: [\n      'POST /predict/hs-code',\n      'POST /predict/market-opportunity',\n      'POST /api/trade-anomaly/predict',\n      'POST /compliance/rag-analyze',\n      'POST /predict/counterparty-match',\n      'POST /api/v1/trade/generate-report'\n    ],\n    errors: errors,\n    executed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "code-aggregate",
+      "name": "Code - Aggregate ML Synthesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Analyze Trade (Live)": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate + Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Test Trade Analysis": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate + Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate + Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - HS Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - HS Classifier": {
+      "main": [
+        [
+          {
+            "node": "HTTP - XGBoost Demand Forecaster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - XGBoost Demand Forecaster": {
+      "main": [
+        [
+          {
+            "node": "HTTP - IsolationForest Anomaly Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - IsolationForest Anomaly Engine": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Compliance RAG Retriever",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Compliance RAG Retriever": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Counterparty Match + Sanctions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Counterparty Match + Sanctions": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Multi-Model Report Synthesizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Multi-Model Report Synthesizer": {
+      "main": [
+        [
+          {
+            "node": "Code - Aggregate ML Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Aggregate ML Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

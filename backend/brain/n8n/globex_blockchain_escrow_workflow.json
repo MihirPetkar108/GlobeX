@@ -1,0 +1,799 @@
+{
+  "name": "GlobeXAI - Blockchain Escrow Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## GlobeXAI - Blockchain Escrow Workflow\n\nFour independent webhook branches. No Postgres nodes, no n8n credentials required -\nevery write goes through the FastAPI escrow routes, which own the DB connection and RLS.\nImport this file and activate it; nothing else to configure.\n\nA - globex-escrow-create : create + fund escrow\nB - globex-doc-anchor    : anchor a document hash\nC - globex-shipment-event: set a condition, then release only if the contract's own\n                           conditions are met (n8n never overrides the contract)\nD - globex-dispute       : raise a dispute (never reaches any release node)\n\nAll HTTP nodes call http://host.docker.internal:8000/api/v1/... with neverError=true,\nso a 4xx/5xx from FastAPI flows into a classifier Code node instead of killing the run.",
+        "height": 260,
+        "width": 2200,
+        "color": 7
+      },
+      "id": "sticky-overview",
+      "name": "Architecture Guide - Blockchain Escrow Workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Branch A - Create + Fund Escrow\nINPUT: { trade_id, buyer_address, seller_address, amount_usdc? }\nOUTPUT: { status: SUCCESS, trade_id, create_tx_hash, fund_tx_hash, escrow_status }\nERROR: { status: FAILED, stage: CREATE_ESCROW|FUND_ESCROW, error_code, error_message, retryable }\nSIDE EFFECT: writes escrow_accounts (PENDING then FUNDED) + blockchain_records rows.\nIDEMPOTENCY: calling again for the same trade_id returns the existing escrow (already_anchored).",
+        "height": 200,
+        "width": 1900,
+        "color": 4
+      },
+      "id": "sticky-a",
+      "name": "Branch A Notes - Create + Fund Escrow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-escrow-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-escrow-create",
+      "name": "Webhook - Escrow Create",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        140
+      ],
+      "webhookId": "globex-escrow-create-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "var body = $json.body || $json;\nvar trade_id = String(body.trade_id || body.tradeId || '');\nvar buyer_address = String(body.buyer_address || body.buyerAddress || '');\nvar seller_address = String(body.seller_address || body.sellerAddress || '');\nvar amount_usdc = body.amount_usdc != null ? Number(body.amount_usdc) : (body.amountUsdc != null ? Number(body.amountUsdc) : null);\nreturn [{ json: { trade_id: trade_id, buyer_address: buyer_address, seller_address: seller_address, amount_usdc: amount_usdc } }];"
+      },
+      "id": "code-validate-a",
+      "name": "Code - Validate Branch A Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/trades/{{ $('Code - Validate Branch A Input').item.json.trade_id }}/escrow",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ buyer_address: $('Code - Validate Branch A Input').item.json.buyer_address, seller_address: $('Code - Validate Branch A Input').item.json.seller_address, amount_usdc: $('Code - Validate Branch A Input').item.json.amount_usdc }) }}"
+      },
+      "id": "http-create-escrow",
+      "name": "HTTP - Create Escrow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/escrow/{{ $('Code - Validate Branch A Input').item.json.trade_id }}/fund",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": false
+      },
+      "id": "http-fund-escrow",
+      "name": "HTTP - Fund Escrow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        820,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var validated = $('Code - Validate Branch A Input').item.json;\nvar create = $('HTTP - Create Escrow').item.json;\nvar fund = $('HTTP - Fund Escrow').item.json;\n\nfunction isError(d) {\n  return !!(d && (d.detail || d.error));\n}\n\nif (isError(create)) {\n  var d1 = create.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    trade_id: validated.trade_id,\n    stage: 'CREATE_ESCROW',\n    error_code: d1.code || 'UNKNOWN',\n    error_message: d1.message || create.error || 'Escrow creation failed',\n    retryable: true\n  } }];\n}\n\nif (isError(fund)) {\n  var d2 = fund.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    trade_id: validated.trade_id,\n    stage: 'FUND_ESCROW',\n    error_code: d2.code || 'UNKNOWN',\n    error_message: d2.message || fund.error || 'Escrow funding failed',\n    retryable: true\n  } }];\n}\n\nreturn [{ json: {\n  status: 'SUCCESS',\n  trade_id: validated.trade_id,\n  create_tx_hash: create.transaction_hash,\n  fund_tx_hash: fund.transaction_hash,\n  escrow_status: fund.status\n} }];"
+      },
+      "id": "code-classify-a",
+      "name": "Code - Classify Branch A Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-a",
+      "name": "Respond - Branch A",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Branch B - Document Anchor\nINPUT: { trade_id }\nOUTPUT: { status: SUCCESS, trade_id, transaction_hash, block_number, already_anchored }\nERROR: { status: FAILED, stage: ANCHOR_DOCUMENT, error_code, error_message, retryable }\n  (e.g. NO_INVOICE if no COMMERCIAL_INVOICE document was uploaded for this trade yet)\nSIDE EFFECT: writes a blockchain_records TRADE_ANCHOR row (CONFIRMED with a real tx hash).\nIDEMPOTENCY: a trade already anchored returns the existing tx hash (already_anchored=true).",
+        "height": 200,
+        "width": 1900,
+        "color": 5
+      },
+      "id": "sticky-b",
+      "name": "Branch B Notes - Document Anchor",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-doc-anchor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-doc-anchor",
+      "name": "Webhook - Document Anchor",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        700
+      ],
+      "webhookId": "globex-doc-anchor-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "var body = $json.body || $json;\nvar trade_id = String(body.trade_id || body.tradeId || '');\nreturn [{ json: { trade_id: trade_id } }];"
+      },
+      "id": "code-validate-b",
+      "name": "Code - Validate Branch B Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/trades/{{ $('Code - Validate Branch B Input').item.json.trade_id }}/anchor",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": false
+      },
+      "id": "http-anchor",
+      "name": "HTTP - Anchor Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var validated = $('Code - Validate Branch B Input').item.json;\nvar anchor = $('HTTP - Anchor Document').item.json;\n\nfunction isError(d) {\n  return !!(d && (d.detail || d.error));\n}\n\nif (isError(anchor)) {\n  var d1 = anchor.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    trade_id: validated.trade_id,\n    stage: 'ANCHOR_DOCUMENT',\n    error_code: d1.code || 'UNKNOWN',\n    error_message: d1.message || anchor.error || 'Document anchor failed',\n    retryable: true\n  } }];\n}\n\nreturn [{ json: {\n  status: 'SUCCESS',\n  trade_id: validated.trade_id,\n  transaction_hash: anchor.transaction_hash,\n  block_number: anchor.block_number,\n  already_anchored: anchor.already_anchored\n} }];"
+      },
+      "id": "code-classify-b",
+      "name": "Code - Classify Branch B Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-b",
+      "name": "Respond - Branch B",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Branch C - Shipment Event -> Release\nINPUT: { trade_id, condition_kind: DOCS|SHIPMENT|INSPECTION, value? (default true) }\nOUTPUT (released): { status: RELEASED, trade_id, release_tx_hash, set_condition_tx_hash }\nOUTPUT (locked):   { status: LOCKED, trade_id, reason: CONDITIONS_NOT_MET, missing_conditions, state_label }\nERROR: { status: FAILED, stage: SET_CONDITION|GET_ESCROW_STATUS|RELEASE, error_code, error_message, retryable }\nSIDE EFFECT: sets one condition flag; release only fires when all 3 are true. The IF node\n  only decides whether to ASK the contract to release - the contract independently\n  re-checks every condition and will revert if asked wrongly. No business rules live in n8n.\nIDEMPOTENCY: setting the same condition twice is a no-op write; release on an already\n  RELEASED escrow is rejected by the contract with the real on-chain reason.",
+        "height": 220,
+        "width": 2400,
+        "color": 6
+      },
+      "id": "sticky-c",
+      "name": "Branch C Notes - Shipment Event to Release",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-shipment-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-shipment-event",
+      "name": "Webhook - Shipment Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        1240
+      ],
+      "webhookId": "globex-shipment-event-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "var body = $json.body || $json;\nvar trade_id = String(body.trade_id || body.tradeId || '');\nvar kind = String(body.condition_kind || body.conditionKind || body.kind || 'SHIPMENT').toUpperCase();\nif (kind !== 'DOCS' && kind !== 'SHIPMENT' && kind !== 'INSPECTION') {\n  kind = 'SHIPMENT';\n}\nvar value = body.value != null ? Boolean(body.value) : true;\nreturn [{ json: { trade_id: trade_id, kind: kind, value: value } }];"
+      },
+      "id": "code-validate-c",
+      "name": "Code - Validate Branch C Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/escrow/{{ $('Code - Validate Branch C Input').item.json.trade_id }}/conditions",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: $('Code - Validate Branch C Input').item.json.kind, value: $('Code - Validate Branch C Input').item.json.value }) }}"
+      },
+      "id": "http-set-condition",
+      "name": "HTTP - Set Condition",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://host.docker.internal:8000/api/v1/escrow/{{ $('Code - Validate Branch C Input').item.json.trade_id }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": false
+      },
+      "id": "http-get-status",
+      "name": "HTTP - Get Escrow Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        820,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var validated = $('Code - Validate Branch C Input').item.json;\nvar setResult = $('HTTP - Set Condition').item.json;\nvar statusResult = $('HTTP - Get Escrow Status').item.json;\n\nfunction isError(d) {\n  return !!(d && (d.detail || d.error));\n}\n\nif (isError(setResult)) {\n  var d1 = setResult.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    canRelease: false,\n    trade_id: validated.trade_id,\n    stage: 'SET_CONDITION',\n    error_code: d1.code || 'UNKNOWN',\n    error_message: d1.message || setResult.error || 'Failed to set condition',\n    retryable: true\n  } }];\n}\n\nif (isError(statusResult)) {\n  var d2 = statusResult.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    canRelease: false,\n    trade_id: validated.trade_id,\n    stage: 'GET_ESCROW_STATUS',\n    error_code: d2.code || 'UNKNOWN',\n    error_message: d2.message || statusResult.error || 'Failed to read escrow status',\n    retryable: true\n  } }];\n}\n\nvar chain = statusResult.chain || {};\nvar docsVerified = !!chain.docsVerified;\nvar shipmentDelivered = !!chain.shipmentDelivered;\nvar inspectionPassed = !!chain.inspectionPassed;\nvar stateLabel = chain.stateLabel || 'UNKNOWN';\nvar allMet = docsVerified && shipmentDelivered && inspectionPassed;\n\nvar missing = [];\nif (!docsVerified) { missing.push('docs_verified'); }\nif (!shipmentDelivered) { missing.push('shipment_delivered'); }\nif (!inspectionPassed) { missing.push('inspection_passed'); }\n\nreturn [{ json: {\n  status: 'CHECKED',\n  canRelease: allMet && stateLabel === 'FUNDED',\n  trade_id: validated.trade_id,\n  state_label: stateLabel,\n  missing_conditions: missing,\n  set_condition_tx_hash: setResult.transaction_hash || null\n} }];"
+      },
+      "id": "code-check-conditions",
+      "name": "Code - Check Release Conditions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.canRelease }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-can-release",
+      "name": "IF - Conditions Met",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/escrow/{{ $('Code - Validate Branch C Input').item.json.trade_id }}/release",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": false
+      },
+      "id": "http-release",
+      "name": "HTTP - Release Escrow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var checkResult = $('Code - Check Release Conditions').item.json;\nvar releaseResult = $('HTTP - Release Escrow').item.json;\n\nfunction isError(d) {\n  return !!(d && (d.detail || d.error));\n}\n\nif (isError(releaseResult)) {\n  var d1 = releaseResult.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    trade_id: checkResult.trade_id,\n    stage: 'RELEASE',\n    error_code: d1.code || 'UNKNOWN',\n    error_message: d1.message || releaseResult.error || 'Release failed',\n    retryable: true\n  } }];\n}\n\nreturn [{ json: {\n  status: 'RELEASED',\n  trade_id: checkResult.trade_id,\n  release_tx_hash: releaseResult.transaction_hash,\n  set_condition_tx_hash: checkResult.set_condition_tx_hash\n} }];"
+      },
+      "id": "code-classify-released",
+      "name": "Code - Classify Release Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-released",
+      "name": "Respond - Branch C Released",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2120,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var checkResult = $('Code - Check Release Conditions').item.json;\n\nif (checkResult.status === 'FAILED') {\n  return [{ json: checkResult }];\n}\n\nreturn [{ json: {\n  status: 'LOCKED',\n  trade_id: checkResult.trade_id,\n  reason: 'CONDITIONS_NOT_MET',\n  missing_conditions: checkResult.missing_conditions,\n  state_label: checkResult.state_label,\n  set_condition_tx_hash: checkResult.set_condition_tx_hash\n} }];"
+      },
+      "id": "code-build-locked",
+      "name": "Code - Build Locked Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-locked",
+      "name": "Respond - Branch C Locked",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1860,
+        1420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Branch D - Dispute\nINPUT: { trade_id }\nOUTPUT: { status: DISPUTED, trade_id, transaction_hash, block_number }\nERROR: { status: FAILED, stage: RAISE_DISPUTE, error_code, error_message, retryable }\nSIDE EFFECT: sets escrow_accounts.status=DISPUTED, dispute_active=true. This branch never\n  connects to any release node - the dispute lock is structural in the contract\n  (release() requires state==FUNDED, which DISPUTED is not), not an n8n-side rule.\nIDEMPOTENCY: raising a dispute on an already-disputed escrow is rejected by the contract.",
+        "height": 200,
+        "width": 1900,
+        "color": 3
+      },
+      "id": "sticky-d",
+      "name": "Branch D Notes - Dispute",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        1720
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex-dispute",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-dispute",
+      "name": "Webhook - Dispute",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        2000
+      ],
+      "webhookId": "globex-dispute-wh"
+    },
+    {
+      "parameters": {
+        "jsCode": "var body = $json.body || $json;\nvar trade_id = String(body.trade_id || body.tradeId || '');\nreturn [{ json: { trade_id: trade_id } }];"
+      },
+      "id": "code-validate-d",
+      "name": "Code - Validate Branch D Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/api/v1/escrow/{{ $('Code - Validate Branch D Input').item.json.trade_id }}/dispute",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": false
+      },
+      "id": "http-dispute",
+      "name": "HTTP - Raise Dispute",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var validated = $('Code - Validate Branch D Input').item.json;\nvar dispute = $('HTTP - Raise Dispute').item.json;\n\nfunction isError(d) {\n  return !!(d && (d.detail || d.error));\n}\n\nif (isError(dispute)) {\n  var d1 = dispute.detail || {};\n  return [{ json: {\n    status: 'FAILED',\n    trade_id: validated.trade_id,\n    stage: 'RAISE_DISPUTE',\n    error_code: d1.code || 'UNKNOWN',\n    error_message: d1.message || dispute.error || 'Dispute raise failed',\n    retryable: true\n  } }];\n}\n\nreturn [{ json: {\n  status: 'DISPUTED',\n  trade_id: validated.trade_id,\n  transaction_hash: dispute.transaction_hash,\n  block_number: dispute.block_number\n} }];"
+      },
+      "id": "code-classify-d",
+      "name": "Code - Classify Branch D Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-d",
+      "name": "Respond - Branch D",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        2000
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Escrow Create": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate Branch A Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate Branch A Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Create Escrow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Create Escrow": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Fund Escrow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Fund Escrow": {
+      "main": [
+        [
+          {
+            "node": "Code - Classify Branch A Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Classify Branch A Result": {
+      "main": [
+        [
+          {
+            "node": "Respond - Branch A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Document Anchor": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate Branch B Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate Branch B Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Anchor Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Anchor Document": {
+      "main": [
+        [
+          {
+            "node": "Code - Classify Branch B Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Classify Branch B Result": {
+      "main": [
+        [
+          {
+            "node": "Respond - Branch B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Shipment Event": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate Branch C Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate Branch C Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Set Condition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Set Condition": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Get Escrow Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Get Escrow Status": {
+      "main": [
+        [
+          {
+            "node": "Code - Check Release Conditions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Check Release Conditions": {
+      "main": [
+        [
+          {
+            "node": "IF - Conditions Met",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Conditions Met": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Release Escrow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Build Locked Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Release Escrow": {
+      "main": [
+        [
+          {
+            "node": "Code - Classify Release Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Classify Release Result": {
+      "main": [
+        [
+          {
+            "node": "Respond - Branch C Released",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build Locked Response": {
+      "main": [
+        [
+          {
+            "node": "Respond - Branch C Locked",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Dispute": {
+      "main": [
+        [
+          {
+            "node": "Code - Validate Branch D Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Validate Branch D Input": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Raise Dispute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Raise Dispute": {
+      "main": [
+        [
+          {
+            "node": "Code - Classify Branch D Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Classify Branch D Result": {
+      "main": [
+        [
+          {
+            "node": "Respond - Branch D",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
