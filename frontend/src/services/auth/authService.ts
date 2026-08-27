@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import type { Session } from "@supabase/supabase-js";
 
 export type BusinessType = "EXPORTER" | "IMPORTER" | "BOTH";
@@ -68,7 +69,7 @@ export interface OrganizationLoginResult {
   user: OrganizationLoginUser;
 }
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+const API_BASE_URL = getApiBaseUrl();
 
 /** Reads the full app-level snapshot for the current Supabase session; null slices when signed out or pre-onboarding. */
 export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSnapshot> {
