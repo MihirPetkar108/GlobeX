@@ -48,6 +48,26 @@ export interface RegistrationDocumentPayload {
   data: string;
 }
 
+export interface OrganizationLoginUser {
+  userId: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  role: string;
+  companyName: string;
+  tradeName?: string | null;
+  businessType?: BusinessType | null;
+  country?: string | null;
+  onboardingStep?: OnboardingStep;
+  onboardingCompleted?: boolean;
+  verificationStatus: OrgProfile["verificationStatus"];
+}
+
+export interface OrganizationLoginResult {
+  session: Session;
+  user: OrganizationLoginUser;
+}
+
 const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
 
 /** Reads the full app-level snapshot for the current Supabase session; null slices when signed out or pre-onboarding. */
@@ -72,7 +92,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
 
   const { data: memberRow } = await supabase
     .from("organization_members")
-    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, onboarding_step, onboarding_completed, verification_status)")
+    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, verification_status)")
     .eq("user_id", userRow.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -81,7 +101,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
   if (memberRow?.organizations) {
     const org = memberRow.organizations as unknown as {
       id: string; legal_name: string; trade_name: string | null; business_type: BusinessType | null;
-      country: string | null; onboarding_step: OnboardingStep; onboarding_completed: boolean;
+      country: string | null;
       verification_status: OrgProfile["verificationStatus"];
     };
     organization = {
@@ -91,8 +111,8 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
       businessType: org.business_type,
       country: org.country,
       organizationRole: memberRow.organization_role,
-      onboardingStep: org.onboarding_step,
-      onboardingCompleted: org.onboarding_completed,
+      onboardingStep: "DONE",
+      onboardingCompleted: true,
       verificationStatus: org.verification_status,
     };
   }
@@ -131,7 +151,7 @@ export async function signUp(
   return data;
 }
 
-export async function signIn(email: string, password: string) {
+export async function signIn(email: string, password: string): Promise<OrganizationLoginResult> {
   const response = await fetch(`${API_BASE_URL}/api/organizations/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -146,7 +166,7 @@ export async function signIn(email: string, password: string) {
     refresh_token: body.refreshToken,
   });
   if (error || !data.session) throw new Error("Could not establish the login session.");
-  return data;
+  return { session: data.session, user: body.user };
 }
 
 /** Server-side session invalidation (GoTrue revokes the refresh token), not just a local clear. */
