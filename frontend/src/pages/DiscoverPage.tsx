@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { Listing } from "@/types/trade";
-import { DEMO_LISTINGS } from "@/data/mockTradeData";
 import { aiService } from "@/services/api/aiService";
 import { AppShell } from "@/components/layout/AppShell";
 import ListingDetailDrawer from "@/components/marketplace/ListingDetailDrawer";
@@ -225,12 +224,9 @@ export const DiscoverPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { listings } = useWorkspace();
 
-  // Fallback to DEMO_LISTINGS if API listings are empty
-  const activeListings = useMemo(() => {
-    return listings && listings.length > 0 ? listings : DEMO_LISTINGS;
-  }, [listings]);
+  const activeListings = listings;
 
-  // Filters State (default to empty string so all demo cards are visible immediately)
+  // Filters State
   const [filterProduct, setFilterProduct] = useState("");
   const [filterQty, setFilterQty] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
@@ -260,7 +256,7 @@ export const DiscoverPage: React.FC = () => {
     aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
   }, []);
 
-  // Derived filtered items (reactive so selecting All Products or changing filters instantly displays the demo cards)
+  // Derived filtered items
   const filteredListings = useMemo(() => {
     return activeListings.filter((l) => {
       const q = filterProduct.toLowerCase().trim();

@@ -77,6 +77,7 @@ export function useAuth(): UseAuthResult {
               organizationRole: "ORGANIZATION_ADMIN",
               onboardingStep: "DONE",
               onboardingCompleted: true,
+              verificationStatus: "VERIFIED",
             },
           };
         });
@@ -171,6 +172,7 @@ export function useAuth(): UseAuthResult {
               organizationRole: "ORGANIZATION_ADMIN",
               onboardingStep: "DONE",
               onboardingCompleted: true,
+              verificationStatus: "VERIFIED",
             }
           : null,
     });

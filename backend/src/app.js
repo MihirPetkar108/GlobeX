@@ -14,9 +14,11 @@ app.use(express.json({ limit: '15mb' }));
 // Routes
 const expenseRoutes = require('./routes/expenseRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
+const listingRoutes = require('./routes/listingRoutes');
 
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/listings', listingRoutes);
 
 // Base route
 app.get('/', (req, res) => {

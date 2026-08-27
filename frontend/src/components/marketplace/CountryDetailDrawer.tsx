@@ -280,11 +280,7 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
           </div>
         </div>
 
-<<<<<<< HEAD:frontend/src/components/marketplace/CountryDetailDrawer.tsx
-        {/* ── Action Buttons: Simulate Corridor & Find Companies ───────────────── */}
-=======
         {/* ── Action Button: Simulate Corridor & Generate Report ───────────────── */}
->>>>>>> origin/main:src/components/marketplace/CountryDetailDrawer.tsx
         <div className="pt-2 space-y-2.5">
           <PrimaryAction
             size="lg"
@@ -294,19 +290,6 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
             iconPosition="right"
           >
             Launch Full Corridor Analysis →
-<<<<<<< HEAD:frontend/src/components/marketplace/CountryDetailDrawer.tsx
-          </PrimaryAction>
-          <PrimaryAction
-            variant="outline"
-            size="lg"
-            onClick={handleViewCompanies}
-            className="w-full justify-center"
-            icon={<Building2 className="w-4 h-4" />}
-            iconPosition="left"
-          >
-            View Top Companies to Contact in {destination.country_name}
-=======
->>>>>>> origin/main:src/components/marketplace/CountryDetailDrawer.tsx
           </PrimaryAction>
         </div>
       </div>

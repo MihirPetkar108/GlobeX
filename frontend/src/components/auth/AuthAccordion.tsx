@@ -202,6 +202,15 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
                   </SpecularButton>
                 </div>
               </form>
+
+              <button
+                type="button"
+                onClick={() => navigate("/super-admin/login")}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2.5 text-[11px] font-mono font-semibold text-[var(--text-secondary)] hover:border-red-500/40 hover:text-red-500 transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Super Admin Login
+              </button>
             </motion.div>
           ) : (
             <motion.div

@@ -60,19 +60,10 @@ coverage/
 .claude/
 *claude*
 .*claude*
-<<<<<<< HEAD
-.playwright-mcp/
-Claude_Blockchain_Design_Integration_Pack/
-
-# Environment Variables
-.env
-**/.env
-=======
 Claude_Blockchain_Design_Integration_Pack/
 
 # Env
 .env
->>>>>>> origin/main
 .env.local
 .env.development.local
 .env.test.local

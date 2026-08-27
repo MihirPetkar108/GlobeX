@@ -18,6 +18,8 @@ import DiscoverPage from "@/pages/DiscoverPage";
 // Route-based code splitting for secondary pages
 const OnboardingPage = lazy(() => import("@/pages/OnboardingPage"));
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const SuperAdminLoginPage = lazy(() => import("@/pages/SuperAdminLoginPage"));
+const SuperAdminDashboardPage = lazy(() => import("@/pages/SuperAdminDashboardPage"));
 const ListingDetailPage = lazy(() => import("@/pages/ListingDetailPage"));
 const CatalogPage = lazy(() => import("@/pages/CatalogPage"));
 const CatalogEditorPage = lazy(() => import("@/pages/CatalogEditorPage"));
@@ -86,6 +88,8 @@ const AnimatedRoutes = () => {
           {/* PUBLIC */}
           <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
           <Route path="/auth" element={<PageTransition><AuthPage /></PageTransition>} />
+          <Route path="/super-admin/login" element={<PageTransition><SuperAdminLoginPage /></PageTransition>} />
+          <Route path="/super-admin/dashboard" element={<PageTransition><SuperAdminDashboardPage /></PageTransition>} />
           <Route
             path="/onboarding"
             element={<OnboardingRouteGuard><PageTransition><OnboardingPage /></PageTransition></OnboardingRouteGuard>}
