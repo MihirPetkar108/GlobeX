@@ -57,32 +57,33 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
-type TradeStatusState = "requested" | "confirmed" | "rejected" | "counter";
+type TradeStatusState = "requested" | "confirmed" | "rejected" | "counter" | "settled";
 
 /**
- * Maps the real backend's 12-value trade_status enum to the one of 4 UI
- * states this page renders. ACCEPTED/AGREED and everything downstream of
- * acceptance (IN_PROGRESS/SHIPPED/DELIVERED/DISPUTED/COMPLETED) all map to
- * "confirmed" — they already live inside the 5-tab workspace below, which
- * represents the further steps a trade goes through once accepted.
+ * Maps the backend's trade status and export status into UI states.
  */
-function toTradeStatusState(status: BackendTradeStatus): TradeStatusState {
+function toTradeStatusState(status: BackendTradeStatus | string): TradeStatusState {
   switch (status) {
     case "CREATED":
     case "OFFERED":
+    case "NEW REQUEST":
       return "requested";
     case "COUNTER_OFFERED":
+    case "NEGOTIATING":
       return "counter";
     case "REJECTED":
     case "CANCELLED":
       return "rejected";
+    case "COMPLETED":
+    case "SETTLED":
+      return "settled";
     case "ACCEPTED":
     case "AGREED":
     case "IN_PROGRESS":
     case "SHIPPED":
+    case "IN TRANSIT":
     case "DELIVERED":
     case "DISPUTED":
-    case "COMPLETED":
     default:
       return "confirmed";
   }
@@ -93,7 +94,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const TradeWorkspacePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, listings } = useWorkspace();
+  const { user, listings, exportRequests } = useWorkspace();
 
   const tradeId = id || "";
 
@@ -105,15 +106,60 @@ export const TradeWorkspacePage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchTrade = async () => {
+    setIsLoading(true);
+    setNotFound(false);
+    setNotConnected(false);
+    setLoadError(null);
+
+    // 1. Check if ID matches a local/context export request
+    const matchedExportReq = (exportRequests || []).find((r) => r.id === tradeId);
+    if (matchedExportReq) {
+      const listing = listings.find((l) => l.id === matchedExportReq.listingId);
+      const totalAmount =
+        matchedExportReq.finalTradeValue ||
+        matchedExportReq.buyerProposedTradeValue ||
+        matchedExportReq.originalTradeValue ||
+        (matchedExportReq.quantity * (matchedExportReq.finalAgreedPrice || matchedExportReq.buyerProposedPrice || matchedExportReq.originalPrice || 0));
+
+      const record: TradeRecord = {
+        id: matchedExportReq.id,
+        listing_id: matchedExportReq.listingId || null,
+        exporter_id: "exporter",
+        importer_id: user.organizationId,
+        status: matchedExportReq.status === "SETTLED" ? "COMPLETED" : (matchedExportReq.status as any),
+        total_amount: totalAmount,
+        currency: "USD",
+        quantity: matchedExportReq.quantity,
+        agreed_price: matchedExportReq.finalAgreedPrice || matchedExportReq.buyerProposedPrice || matchedExportReq.originalPrice,
+        created_at: matchedExportReq.createdAt,
+        updated_at: matchedExportReq.createdAt,
+        listing: listing
+          ? {
+              product_name: listing.title,
+              product_category: listing.category,
+              hs_code: listing.hsCode,
+              unit: listing.unit,
+              origin_port: listing.originPort,
+              price: listing.unitPriceUSD,
+              incoterms: "FOB",
+              currency: "USD",
+            }
+          : null,
+      };
+
+      setTrade(record);
+      setTradeState(toTradeStatusState(matchedExportReq.status));
+      setIsLoading(false);
+      return;
+    }
+
+    // 2. Otherwise query backend if valid UUID
     if (!UUID_RE.test(tradeId)) {
       setIsLoading(false);
       setNotFound(true);
       return;
     }
-    setIsLoading(true);
-    setNotFound(false);
-    setNotConnected(false);
-    setLoadError(null);
+
     try {
       const record = await tradesService.getTrade(tradeId);
       setTrade(record);
@@ -132,7 +178,7 @@ export const TradeWorkspacePage: React.FC = () => {
   useEffect(() => {
     fetchTrade();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tradeId]);
+  }, [tradeId, exportRequests]);
 
   // Counteroffer form state
   const [isCounterFormOpen, setIsCounterFormOpen] = useState(false);
@@ -314,6 +360,12 @@ export const TradeWorkspacePage: React.FC = () => {
 
             {/* Dynamic Status Badge */}
             <div>
+              {tradeState === "settled" && (
+                <span className="px-3.5 py-1.5 rounded-full bg-emerald-100 border border-emerald-400 text-emerald-950 font-bold text-xs flex items-center gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                  ✓ Trade Settled & Done
+                </span>
+              )}
               {tradeState === "requested" && (
                 <span className="px-3.5 py-1.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs flex items-center gap-1.5 shadow-2xs">
                   <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />

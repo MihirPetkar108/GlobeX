@@ -11,27 +11,36 @@ import { motion } from "framer-motion";
 import { ChevronRight, Heart, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 
-/** UI status bucket this page groups the real 12-value backend status into. */
-type UiStatus = "Requested" | "Confirmed" | "In Progress" | "Done" | "Rejected";
+import { ExportTradeStatus, ExportRequest } from "@/data/exportRequests";
 
-function toUiStatus(status: TradeRecord["status"]): UiStatus {
+/** UI status bucket this page groups backend and export statuses into. */
+type UiStatus = "Requested" | "Negotiating" | "Confirmed" | "In Progress" | "Done" | "Rejected";
+
+export function toUiStatus(status: TradeRecord["status"] | ExportTradeStatus | string): UiStatus {
   switch (status) {
     case "CREATED":
     case "OFFERED":
-    case "COUNTER_OFFERED":
+    case "NEW REQUEST":
       return "Requested";
+    case "COUNTER_OFFERED":
+    case "NEGOTIATING":
+      return "Negotiating";
     case "ACCEPTED":
     case "AGREED":
+    case "PAYMENT PENDING":
+    case "READY TO SHIP":
       return "Confirmed";
     case "IN_PROGRESS":
     case "SHIPPED":
+    case "IN TRANSIT":
     case "DELIVERED":
+    case "DISPUTED":
       return "In Progress";
     case "COMPLETED":
+    case "SETTLED":
       return "Done";
     case "REJECTED":
     case "CANCELLED":
-    case "DISPUTED":
       return "Rejected";
     default:
       return "Requested";
@@ -40,19 +49,109 @@ function toUiStatus(status: TradeRecord["status"]): UiStatus {
 
 const STATUS_STYLE: Record<UiStatus, string> = {
   Requested: "bg-amber-50 text-amber-800 border-amber-200/90",
+  Negotiating: "bg-violet-50 text-violet-800 border-violet-200/90",
   Confirmed: "bg-sky-50 text-sky-800 border-sky-200/90",
   "In Progress": "bg-indigo-50 text-indigo-800 border-indigo-200/90",
-  Done: "bg-emerald-50 text-emerald-800 border-emerald-200/90",
+  Done: "bg-emerald-50 text-emerald-800 border-emerald-300 font-bold",
   Rejected: "bg-rose-50 text-rose-800 border-rose-200/90",
 };
 
 const STATUS_CTA: Record<UiStatus, string> = {
   Requested: "View Request",
+  Negotiating: "Review Offer",
   Confirmed: "View Trade",
   "In Progress": "Track Trade",
-  Done: "View Trade",
+  Done: "View Settled Trade",
   Rejected: "View Trade",
 };
+
+/**
+ * Hardcoded demo trades, for presentation purposes only. The real backend
+ * has no org-scoped data seeded yet, so without these every status bucket
+ * except "Requested" reads empty. Appended client-side alongside whatever
+ * the API returns — never replaces it — and their CTA shows a toast instead
+ * of navigating, since they don't correspond to a real trade record.
+ */
+interface DemoTradeSeed {
+  id: string;
+  status: TradeRecord["status"];
+  title: string;
+  originCountry: string;
+  supplierName: string;
+  quantity: number;
+  unit: string;
+  totalAmount: number;
+  createdAt: string;
+}
+
+const DEMO_TRADES: DemoTradeSeed[] = [
+  {
+    id: "demo-confirmed-1",
+    status: "ACCEPTED",
+    title: "Premium Basmati Rice — 1121 Grade",
+    originCountry: "India",
+    supplierName: "Amber Agro Exports",
+    quantity: 500,
+    unit: "MT",
+    totalAmount: 275000,
+    createdAt: "2026-08-12T09:00:00.000Z",
+  },
+  {
+    id: "demo-confirmed-2",
+    status: "AGREED",
+    title: "Refined Sunflower Oil",
+    originCountry: "Ukraine",
+    supplierName: "Chornomorsk Oils Ltd",
+    quantity: 200,
+    unit: "MT",
+    totalAmount: 168000,
+    createdAt: "2026-08-15T09:00:00.000Z",
+  },
+  {
+    id: "demo-negotiating-1",
+    status: "COUNTER_OFFERED",
+    title: "Organic Turmeric Powder",
+    originCountry: "India",
+    supplierName: "Erode Spice Co",
+    quantity: 80,
+    unit: "MT",
+    totalAmount: 96000,
+    createdAt: "2026-08-20T09:00:00.000Z",
+  },
+  {
+    id: "demo-negotiating-2",
+    status: "COUNTER_OFFERED",
+    title: "Cold-Rolled Steel Coils",
+    originCountry: "South Korea",
+    supplierName: "Hanul Steel Corp",
+    quantity: 150,
+    unit: "MT",
+    totalAmount: 342000,
+    createdAt: "2026-08-22T09:00:00.000Z",
+  },
+  {
+    id: "demo-rejected-1",
+    status: "REJECTED",
+    title: "Robusta Coffee Beans",
+    originCountry: "Vietnam",
+    supplierName: "Central Highlands Coffee",
+    quantity: 60,
+    unit: "MT",
+    totalAmount: 108000,
+    createdAt: "2026-08-10T09:00:00.000Z",
+  },
+  {
+    id: "demo-rejected-2",
+    status: "CANCELLED",
+    title: "Cotton Yarn — 30s Combed",
+    originCountry: "Pakistan",
+    supplierName: "Faisalabad Textile Mills",
+    quantity: 40,
+    unit: "MT",
+    totalAmount: 88000,
+    createdAt: "2026-08-05T09:00:00.000Z",
+  },
+];
 
 const WISHLIST_KEY = "globex_trade_wishlist_ids";
 
@@ -71,10 +170,10 @@ function saveWishlist(ids: string[]) {
 
 type FilterTab = "All" | "Wishlist" | UiStatus;
 
-const TABS: FilterTab[] = ["All", "Wishlist", "Requested", "Confirmed", "In Progress", "Done", "Rejected"];
+const TABS: FilterTab[] = ["All", "Wishlist", "Requested", "Negotiating", "Confirmed", "In Progress", "Done", "Rejected"];
 
 export const TradesIndexPage: React.FC = () => {
-  const { user, listings, hasUnreadTradeUpdates } = useWorkspace();
+  const { user, listings, hasUnreadTradeUpdates, exportRequests } = useWorkspace();
 
   const [trades, setTrades] = useState<TradeRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +188,7 @@ export const TradesIndexPage: React.FC = () => {
     setNotConnected(false);
     try {
       const all = await tradesService.getTrades();
-      // No server-side org scoping exists — filter to trades where this org is the importer.
+      // Filter to trades where this org is the importer.
       setTrades(all.filter((t) => t.importer_id === user.organizationId));
     } catch (err) {
       if (err instanceof BackendUnavailableError) {
@@ -124,9 +223,61 @@ export const TradesIndexPage: React.FC = () => {
     });
   };
 
-  // Best-effort enrichment: the backend has no product title/image/country
-  // fields on a trade, only raw ids — match against listings already
-  // fetched by WorkspaceContext, falling back to a generic display.
+  // 1. Workspace Export Requests (including all importer-initiated & exporter-settled trades)
+  const exportRequestsEnriched = useMemo(() => {
+    return (exportRequests || []).map((req) => {
+      const listing = listings.find((l) => l.id === req.listingId);
+      const uiStatus = toUiStatus(req.status);
+      const totalAmount =
+        req.finalTradeValue ||
+        req.buyerProposedTradeValue ||
+        req.originalTradeValue ||
+        (req.quantity * (req.finalAgreedPrice || req.buyerProposedPrice || req.originalPrice || 0));
+
+      const tradeRecord: TradeRecord = {
+        id: req.id,
+        listing_id: req.listingId || null,
+        exporter_id: "exporter",
+        importer_id: user.organizationId,
+        status: req.status === "SETTLED" ? "COMPLETED" : (req.status as any),
+        total_amount: totalAmount,
+        currency: "USD",
+        quantity: req.quantity,
+        agreed_price: req.finalAgreedPrice || req.buyerProposedPrice || req.originalPrice,
+        created_at: req.createdAt,
+        updated_at: req.createdAt,
+        listing: listing
+          ? {
+              product_name: listing.title,
+              product_category: listing.category,
+              hs_code: listing.hsCode,
+              unit: listing.unit,
+              origin_port: listing.originPort,
+              price: listing.unitPriceUSD,
+              incoterms: "FOB",
+              currency: "USD",
+            }
+          : null,
+      };
+
+      return {
+        record: tradeRecord,
+        listing,
+        uiStatus,
+        title: req.product || listing?.title || `Trade #${req.id.slice(0, 8)}`,
+        image: undefined,
+        originCountry: req.origin || listing?.exporterCountry || "India",
+        supplierName: listing?.exporterName || "Verified Exporter Ltd",
+        quantityLabel: `${req.quantity?.toLocaleString() || 0} ${req.unit || listing?.unit || "MT"}`,
+        totalAmount,
+        isWishlisted: wishlist.includes(req.id),
+        isDemo: false,
+        rawRequest: req,
+      };
+    });
+  }, [exportRequests, listings, wishlist, user.organizationId]);
+
+  // 2. Best-effort enrichment for API records
   const enriched = useMemo(() => {
     return trades.map((t) => {
       const listing = listings.find((l) => l.id === t.listing_id);
@@ -138,17 +289,58 @@ export const TradesIndexPage: React.FC = () => {
         listing,
         uiStatus,
         title: listing?.title || `Trade #${t.id.slice(0, 8)}`,
-        image: listing ? undefined : undefined,
+        image: undefined,
         originCountry: listing?.exporterCountry || "Unknown origin",
         supplierName: listing?.exporterName || "Unverified supplier",
         quantityLabel: t.quantity != null ? `${t.quantity.toLocaleString()} ${listing?.unit || "units"}` : "—",
         totalAmount,
         isWishlisted: wishlist.includes(t.id),
+        isDemo: false,
+        rawRequest: undefined as ExportRequest | undefined,
       };
     });
   }, [trades, listings, wishlist]);
 
-  const filtered = enriched.filter((t) => {
+  // 3. Demo fallback seed trades
+  const demoEnriched = useMemo(() => {
+    return DEMO_TRADES.map((d) => ({
+      record: {
+        id: d.id,
+        listing_id: null,
+        exporter_id: "demo",
+        importer_id: user.organizationId,
+        status: d.status,
+        total_amount: d.totalAmount,
+        currency: "USD",
+        quantity: d.quantity,
+        agreed_price: d.quantity ? d.totalAmount / d.quantity : null,
+        created_at: d.createdAt,
+        updated_at: d.createdAt,
+        listing: null,
+      } as TradeRecord,
+      listing: undefined,
+      uiStatus: toUiStatus(d.status),
+      title: d.title,
+      image: undefined,
+      originCountry: d.originCountry,
+      supplierName: d.supplierName,
+      quantityLabel: `${d.quantity.toLocaleString()} ${d.unit}`,
+      totalAmount: d.totalAmount,
+      isWishlisted: wishlist.includes(d.id),
+      isDemo: true,
+      rawRequest: undefined as ExportRequest | undefined,
+    }));
+  }, [wishlist, user.organizationId]);
+
+  // Unified trades: Prioritize live exportRequests and deduplicate IDs
+  const allTrades = useMemo(() => {
+    const existingIds = new Set(exportRequestsEnriched.map((r) => r.record.id));
+    const dedupedEnriched = enriched.filter((e) => !existingIds.has(e.record.id));
+    const dedupedDemo = demoEnriched.filter((d) => !existingIds.has(d.record.id));
+    return [...exportRequestsEnriched, ...dedupedEnriched, ...dedupedDemo];
+  }, [exportRequestsEnriched, enriched, demoEnriched]);
+
+  const filtered = allTrades.filter((t) => {
     if (activeTab === "All") return true;
     if (activeTab === "Wishlist") return t.isWishlisted;
     return t.uiStatus === activeTab;
@@ -166,7 +358,7 @@ export const TradesIndexPage: React.FC = () => {
         {/* Filter Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3 overflow-x-auto">
           {TABS.map((tab) => {
-            const count = enriched.filter((t) => {
+            const count = allTrades.filter((t) => {
               if (tab === "All") return true;
               if (tab === "Wishlist") return t.isWishlisted;
               return t.uiStatus === tab;
@@ -279,6 +471,20 @@ export const TradesIndexPage: React.FC = () => {
                         <span className="text-slate-700">{t.supplierName}</span>
                         <span>•</span>
                         <span className="font-semibold text-slate-800">{t.quantityLabel}</span>
+                        {t.uiStatus === "Done" && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              ✓ Escrow Released & Settled
+                            </span>
+                          </>
+                        )}
+                        {t.rawRequest?.carrier && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-600 font-medium">Carrier: {t.rawRequest.carrier}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -291,7 +497,7 @@ export const TradesIndexPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <Link to={`/trades/${t.record.id}`}>
+                    {t.isDemo ? (
                       <SpecularButton
                         size="sm"
                         radius={12}
@@ -299,10 +505,24 @@ export const TradesIndexPage: React.FC = () => {
                         className="px-4 py-2 font-bold text-xs font-sans group-hover:shadow-md"
                         icon={<ChevronRight className="w-4 h-4" />}
                         iconPosition="right"
+                        onClick={() => toast.info("This is sample demo data — no live workspace behind it yet.")}
                       >
                         {STATUS_CTA[t.uiStatus]}
                       </SpecularButton>
-                    </Link>
+                    ) : (
+                      <Link to={`/trades/${t.record.id}`}>
+                        <SpecularButton
+                          size="sm"
+                          radius={12}
+                          variant={t.uiStatus === "Requested" ? "secondary" : "emerald"}
+                          className="px-4 py-2 font-bold text-xs font-sans group-hover:shadow-md"
+                          icon={<ChevronRight className="w-4 h-4" />}
+                          iconPosition="right"
+                        >
+                          {STATUS_CTA[t.uiStatus]}
+                        </SpecularButton>
+                      </Link>
+                    )}
                   </div>
                 </motion.div>
               ))
