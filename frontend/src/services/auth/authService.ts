@@ -166,7 +166,8 @@ export async function signIn(email: string, password: string): Promise<Organizat
     access_token: body.token,
     refresh_token: body.refreshToken,
   });
-  if (error || !data.session) throw new Error("Could not establish the login session.");
+  if (error) throw new Error(`Could not establish the login session: ${error.message}`);
+  if (!data.session) throw new Error("Could not establish the login session: Supabase returned no session.");
   return { session: data.session, user: body.user };
 }
 
