@@ -1,3 +1,4 @@
+/**
  * Thin client for GlobeX Express trade endpoints.
  * Supports authenticated trade requests (POST/GET /api/trades) and REST v1 reads.
  */
