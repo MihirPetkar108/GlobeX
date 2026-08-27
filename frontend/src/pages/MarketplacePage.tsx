@@ -51,7 +51,7 @@ const CATEGORIES = [
 
 export const MarketplacePage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const { listings, listingsLoading, listingsError, isExporterView, isImporterView, activeDirection } = useWorkspace();
+  const { listings, listingsLoading, listingsError, refreshListings, isExporterView, isImporterView, activeDirection } = useWorkspace();
 
   // ── n8n Live Status Probe ──────────────────────────────────────────────
   const [n8nOnline, setN8nOnline] = useState<boolean | null>(null);
@@ -84,6 +84,10 @@ export const MarketplacePage: React.FC = () => {
   const [isRequestDrawerOpen, setIsRequestDrawerOpen] = useState<boolean>(false);
 
   // Probe n8n health on mount
+  useEffect(() => {
+    refreshListings();
+  }, [refreshListings]);
+
   useEffect(() => {
     n8nWorkflowService.checkHealth().then((res) => {
       setN8nOnline(res.isOnline);

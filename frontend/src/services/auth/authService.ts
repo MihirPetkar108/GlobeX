@@ -32,6 +32,7 @@ export interface OrgProfile {
   organizationRole: OrganizationRole;
   onboardingStep: OnboardingStep;
   onboardingCompleted: boolean;
+  verificationStatus: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED" | "SUSPENDED";
 }
 
 export interface AuthSnapshot {
@@ -62,7 +63,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
 
   const { data: memberRow } = await supabase
     .from("organization_members")
-    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, onboarding_step, onboarding_completed)")
+    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, onboarding_step, onboarding_completed, verification_status)")
     .eq("user_id", userRow.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -72,6 +73,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
     const org = memberRow.organizations as unknown as {
       id: string; legal_name: string; trade_name: string | null; business_type: BusinessType | null;
       country: string | null; onboarding_step: OnboardingStep; onboarding_completed: boolean;
+      verification_status: OrgProfile["verificationStatus"];
     };
     organization = {
       id: org.id,
@@ -82,6 +84,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
       organizationRole: memberRow.organization_role,
       onboardingStep: org.onboarding_step,
       onboardingCompleted: org.onboarding_completed,
+      verificationStatus: org.verification_status,
     };
   }
 
@@ -109,6 +112,21 @@ export async function signUp(email: string, password: string, firstName: string,
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
+
+  const snapshot = await fetchAuthSnapshot(data.session);
+  const verificationStatus = snapshot.organization?.verificationStatus;
+  if (verificationStatus !== "VERIFIED") {
+    await supabase.auth.signOut();
+    const message = verificationStatus === "REJECTED"
+      ? "Your organization verification was rejected. Login access is denied."
+      : verificationStatus === "UNDER_REVIEW"
+        ? "Your organization is under review. Login will be available after approval."
+        : verificationStatus === "SUSPENDED"
+          ? "Your organization is suspended. Login access is denied."
+          : "Your organization is awaiting verification. Login will be available after approval.";
+    throw new Error(message);
+  }
+
   return data;
 }
 

@@ -406,7 +406,6 @@ exports.loginOrganization = async (req, res) => {
       });
     }
 
-    // Allowed (VERIFIED / APPROVED)
     return res.status(200).json({
       message: 'Login successful',
       token: user.id, // simple identifier for mock token
@@ -455,6 +454,14 @@ exports.loginOrganization = async (req, res) => {
 
     if (orgError || !orgData) {
       return res.status(404).json({ message: 'Organization details not found.' });
+    }
+
+    if (orgData.verification_status !== 'VERIFIED') {
+      await supabase.auth.signOut();
+      return res.status(403).json({
+        message: `Organization verification status is ${orgData.verification_status}. Login is allowed only after approval.`,
+        status: orgData.verification_status
+      });
     }
 
     // D. Restriction check on verification_status

@@ -907,9 +907,9 @@ class AIService {
       leadTimeDays: d.lead_time_days,
       minimumOrderQuantity: d.minimum_order_quantity,
       specs: d.specs || {},
-      exporterName: d.exporter_name,
-      exporterCountry: d.exporter_country,
-      exporterCity: d.exporter_city,
+      exporterName: d.exporter_name || d.organizations?.trade_name || d.organizations?.legal_name,
+      exporterCountry: d.exporter_country || d.organizations?.country,
+      exporterCity: d.exporter_city || d.organizations?.city,
       createdAt: d.created_at,
       updatedAt: d.updated_at,
     }));
