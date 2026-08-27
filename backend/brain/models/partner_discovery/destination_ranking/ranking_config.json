@@ -1,0 +1,69 @@
+{
+  "module_name": "India Export Destination Country Ranking Layer",
+  "version": "1.0.0",
+  "weights": {
+    "demand": 0.3,
+    "growth": 0.2,
+    "access": 0.15,
+    "economic_capacity": 0.1,
+    "logistics": 0.1,
+    "buyer_ecosystem": 0.05,
+    "stability": 0.05,
+    "risk": 0.05
+  },
+  "dimensions": [
+    {
+      "name": "demand",
+      "weight": 0.3,
+      "description": "Revealed Indian export demand & market share"
+    },
+    {
+      "name": "growth",
+      "weight": 0.2,
+      "description": "3-year export value & weight CAGR"
+    },
+    {
+      "name": "access",
+      "weight": 0.15,
+      "description": "Applied tariffs, preferential margins & RTAs"
+    },
+    {
+      "name": "economic_capacity",
+      "weight": 0.1,
+      "description": "Destination GDP, GDP per capita & population"
+    },
+    {
+      "name": "logistics",
+      "weight": 0.1,
+      "description": "Seaport, airport, and multimodal infrastructure"
+    },
+    {
+      "name": "buyer_ecosystem",
+      "weight": 0.05,
+      "description": "Active verified GLEIF buyer organizations"
+    },
+    {
+      "name": "stability",
+      "weight": 0.05,
+      "description": "Trading consistency and active corridor years"
+    },
+    {
+      "name": "risk",
+      "weight": 0.05,
+      "description": "Sanctions, OFAC, and SCOMET regulatory restrictions"
+    }
+  ],
+  "quantity_fit_blend": {
+    "base_score_weight": 0.9,
+    "quantity_fit_weight": 0.1,
+    "cutoffs": {
+      "small_scale_max_ratio": 0.05,
+      "commercial_scale_max_ratio": 0.5,
+      "stretched_scale_max_ratio": 1.0
+    }
+  },
+  "exclusions": [
+    "WLD"
+  ],
+  "total_catalog_products": 40
+}

@@ -1,5 +1,5 @@
 /**
- * Thin client for the real FastAPI trades endpoints (brain/controllers/trades_controller.py),
+ * Thin client for GlobeX Express trade endpoints.
  * following the same fetch/error conventions as aiService.ts. No fallback: a
  * failed or unreachable call throws, callers decide how to render that.
  *
@@ -57,7 +57,7 @@ class TradesService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
+    this.baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
   }
 
   private async handleErrorResponse(res: Response, context: string): Promise<never> {

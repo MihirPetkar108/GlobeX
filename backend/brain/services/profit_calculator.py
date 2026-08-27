@@ -50,16 +50,26 @@ FALLBACK_FREIGHT_RATE_USD_PER_KG = 0.105  # UNCTAD "World" average, 2021 — use
 
 @lru_cache(maxsize=1)
 def _load_freight_rates() -> Dict[str, Dict[str, Any]]:
-    if not FREIGHT_RATE_CSV.exists():
-        raise FileNotFoundError(f"Freight rate reference CSV not found at {FREIGHT_RATE_CSV}")
+    candidates = [
+        FREIGHT_RATE_CSV,
+        PROJECT_ROOT / "brain" / "datasets" / "final" / "reference_data" / "freight_rate_by_country_2021.csv",
+        PROJECT_ROOT / "backend" / "brain" / "datasets" / "final" / "reference_data" / "freight_rate_by_country_2021.csv",
+        Path("backend/brain/datasets/final/reference_data/freight_rate_by_country_2021.csv"),
+    ]
+    target_csv = next((c for c in candidates if c.exists()), None)
+    if not target_csv:
+        return {}
     rates: Dict[str, Dict[str, Any]] = {}
-    with open(FREIGHT_RATE_CSV, encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            rates[row["country_iso3"].strip().upper()] = {
-                "region": row["un_m49_subregion"],
-                "rate_usd_per_kg": float(row["freight_rate_usd_per_kg_2021"]),
-                "source": row["source"],
-            }
+    try:
+        with open(target_csv, encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                rates[row["country_iso3"].strip().upper()] = {
+                    "region": row["un_m49_subregion"],
+                    "rate_usd_per_kg": float(row["freight_rate_usd_per_kg_2021"]),
+                    "source": row["source"],
+                }
+    except Exception:
+        return {}
     return rates
 
 

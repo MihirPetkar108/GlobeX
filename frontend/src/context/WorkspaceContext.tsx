@@ -13,7 +13,7 @@ import {
 export type TradeDirection = "Export" | "Import";
 
 /**
- * Maps a real, DB-backed listing (src/api/trades_api.py::list_listings) to the
+ * Maps a real, DB-backed listing (Express /api/v1/listings) to the
  * UI's Listing shape.
  */
 function toUiListing(record: ListingRecord): Listing {

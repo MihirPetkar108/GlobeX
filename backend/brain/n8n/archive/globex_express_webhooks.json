@@ -1,0 +1,89 @@
+{
+  "name": "GlobeX Express Gateway Webhooks",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "document-uploaded", "responseMode": "responseNode", "options": {} },
+      "id": "webhook-document-uploaded",
+      "name": "Webhook - Document Uploaded",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-420, 260],
+      "webhookId": "globex-document-uploaded-express"
+    },
+    {
+      "parameters": { "method": "POST", "url": "http://host.docker.internal:5002/documents/ocr-extract", "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.body || $json) }}", "options": { "timeout": 60000 } },
+      "id": "http-document-ocr",
+      "name": "Express - Document OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-120, 260]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "respond-document-uploaded",
+      "name": "Respond - Document Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [160, 260]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "marketplace-match", "responseMode": "responseNode", "options": {} },
+      "id": "webhook-marketplace-match",
+      "name": "Webhook - Marketplace Match",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-420, 520],
+      "webhookId": "globex-marketplace-match-express"
+    },
+    {
+      "parameters": { "method": "POST", "url": "http://host.docker.internal:5002/api/v1/marketplace/match-buyers", "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.body || $json) }}", "options": { "timeout": 60000 } },
+      "id": "http-marketplace-match",
+      "name": "Express - Buyer Matching",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-120, 520]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "respond-marketplace-match",
+      "name": "Respond - Buyer Matches",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [160, 520]
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "create-trade", "responseMode": "responseNode", "options": {} },
+      "id": "webhook-create-trade",
+      "name": "Webhook - Create Trade",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-420, 780],
+      "webhookId": "globex-create-trade-express"
+    },
+    {
+      "parameters": { "method": "POST", "url": "http://host.docker.internal:5002/api/v1/trades", "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify($json.body || $json) }}", "options": { "timeout": 60000 } },
+      "id": "http-create-trade",
+      "name": "Express - Create Trade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-120, 780]
+    },
+    {
+      "parameters": { "options": {} },
+      "id": "respond-create-trade",
+      "name": "Respond - Trade Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [160, 780]
+    }
+  ],
+  "connections": {
+    "Webhook - Document Uploaded": { "main": [[{ "node": "Express - Document OCR", "type": "main", "index": 0 }]] },
+    "Express - Document OCR": { "main": [[{ "node": "Respond - Document Result", "type": "main", "index": 0 }]] },
+    "Webhook - Marketplace Match": { "main": [[{ "node": "Express - Buyer Matching", "type": "main", "index": 0 }]] },
+    "Express - Buyer Matching": { "main": [[{ "node": "Respond - Buyer Matches", "type": "main", "index": 0 }]] },
+    "Webhook - Create Trade": { "main": [[{ "node": "Express - Create Trade", "type": "main", "index": 0 }]] },
+    "Express - Create Trade": { "main": [[{ "node": "Respond - Trade Result", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

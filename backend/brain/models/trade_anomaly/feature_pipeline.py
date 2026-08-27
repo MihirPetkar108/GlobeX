@@ -4,6 +4,7 @@ Implements strict leakage-free temporal feature derivation, chronological splitt
 and train-only fitted transformation pipelines.
 """
 
+import sys
 from typing import Dict, List, Optional, Tuple, Any, Union
 import numpy as np
 import pandas as pd
@@ -11,6 +12,10 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import RobustScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
 import joblib
+
+# Support unpickling models saved under legacy module namespaces
+sys.modules.setdefault("src.trade_anomaly.feature_pipeline", sys.modules[__name__])
+sys.modules.setdefault("trade_anomaly.feature_pipeline", sys.modules[__name__])
 
 # Target and non-feature columns that must never leak into model input matrices
 TARGET_COLUMNS = ["anomaly_flag", "anomaly_type", "label_source"]

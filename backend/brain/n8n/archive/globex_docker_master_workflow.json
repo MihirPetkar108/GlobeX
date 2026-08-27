@@ -67,7 +67,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/predict/hs-code",
+        "url": "http://host.docker.internal:5002/predict/hs-code",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"product\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"origin\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\"\n}",
@@ -87,7 +87,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/predict/market-opportunity",
+        "url": "http://host.docker.internal:5002/predict/market-opportunity",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"product\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"regime\": \"{{ $('Code - Validate + Normalize Input').item.json.regime }}\",\n  \"top_n\": 8\n}",
@@ -107,7 +107,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/api/trade-anomaly/predict",
+        "url": "http://host.docker.internal:5002/api/trade-anomaly/predict",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"trade_flow\": \"{{ $('Code - Validate + Normalize Input').item.json.trade_flow }}\",\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"partner_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }},\n  \"quantity\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"quantity_unit\": \"kg\",\n  \"period\": \"202608\"\n}",
@@ -127,7 +127,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/compliance/rag-analyze",
+        "url": "http://host.docker.internal:5002/compliance/rag-analyze",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"origin_country\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }}\n}",
@@ -147,7 +147,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/predict/counterparty-match",
+        "url": "http://host.docker.internal:5002/predict/counterparty-match",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"hs6\": {{ Number($('HTTP - HS Classifier').item.json.hs6 || 100630) }},\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"top_n\": 5\n}",
@@ -167,7 +167,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8000/api/v1/trade/generate-report",
+        "url": "http://host.docker.internal:5002/api/v1/trade/generate-report",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"product_query\": \"{{ $('Code - Validate + Normalize Input').item.json.product }}\",\n  \"origin_country\": \"{{ $('Code - Validate + Normalize Input').item.json.origin_country }}\",\n  \"destination_country\": \"{{ $('Code - Validate + Normalize Input').item.json.destination_country }}\",\n  \"quantity_kg\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg }},\n  \"trade_value_usd\": {{ $('Code - Validate + Normalize Input').item.json.quantity_kg * ($('Code - Validate + Normalize Input').item.json.target_price_usd / 1000) }},\n  \"trade_flow\": \"{{ $('Code - Validate + Normalize Input').item.json.trade_flow }}\"\n}",

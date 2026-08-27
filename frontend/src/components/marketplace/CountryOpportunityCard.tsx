@@ -8,7 +8,8 @@ import {
   CheckCircle2, 
   DollarSign, 
   Ship, 
-  ChevronRight 
+  ChevronRight,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,8 +53,9 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
   userQuantityKg = 1000,
 }) => {
   const { destination, forecast, scores, risk, pros, cons } = data;
+  const tradeRisk = data.tradeRiskAnalysis?.risk;
   const flag = ISO3_FLAG_MAP[destination.iso3] || "🌐";
-  const finalScore = scores.final_score || 80;
+  const finalScore = scores.final_score;
   
   // Format tonnage and currency
   const annualDemandMT = Math.round(forecast.annual_market_demand_kg / 1000).toLocaleString();
@@ -122,6 +124,17 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Trade risk: {tradeRisk ? tradeRisk.risk_level : "Unavailable"}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+          <Users className="w-3.5 h-3.5 text-sky-600" />
+          <span>Click for companies &amp; profit estimate</span>
+        </div>
+      </div>
+
       {/* ── Single top signal — whichever matters more, not both ─────── */}
       {(pros?.length || cons?.length) && (
         <div className="flex items-start gap-2 text-xs font-sans text-[var(--text-secondary)]">
@@ -145,12 +158,12 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
           {scores.risk_penalty > 0 ? (
             <>
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-              <span className="text-amber-700 font-bold">{risk.risk_level || "MEDIUM"} risk</span>
+              <span className="text-amber-700 font-bold">{risk.risk_level} risk</span>
             </>
           ) : (
             <>
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-emerald-600 font-bold">{risk.risk_level || "LOW"} risk</span>
+              <span className="text-emerald-600 font-bold">{risk.risk_level} risk</span>
             </>
           )}
         </span>

@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "check": "node --check server.js && node --check src/app.js && node --check src/routes/intelligenceRoutes.js && node --check src/routes/blockchainRoutes.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",

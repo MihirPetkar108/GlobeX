@@ -1,0 +1,623 @@
+{
+  "name": "GlobeX Master Trade OS - Real Express Endpoints",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/analyze-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_523974663",
+      "name": "Analyze Trade Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/predict/hs-code",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_195126048",
+      "name": "HS Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/predict/market-opportunity",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_698679375",
+      "name": "Market Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/api/trade-anomaly/predict",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_6258223",
+      "name": "Trade Anomaly",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/compliance/rag-analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_197819099",
+      "name": "Compliance RAG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/predict/counterparty-match",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_406018863",
+      "name": "Counterparty Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}}/api/v1/trade/generate-report",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$node['Analyze Trade Webhook'].json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_409621115",
+      "name": "Canonical Trade Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_825478140",
+      "name": "Analyze Trade Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/match-buyers",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_722497118",
+      "name": "Match Buyers Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/api/v1/marketplace/match-buyers",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_140397129",
+      "name": "Match Buyers HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        350,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_617294361",
+      "name": "Match Buyers Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/document-uploaded",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_702907318",
+      "name": "Document Uploaded Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/documents/ocr-extract",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_518885437",
+      "name": "Document Uploaded HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        350,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_636721683",
+      "name": "Document Uploaded Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/create-trade",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_380478169",
+      "name": "Create Trade Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1050
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={$env.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002'}/api/v1/trades",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_546533509",
+      "name": "Create Trade HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        350,
+        1050
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_567688588",
+      "name": "Create Trade Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        1050
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/blockchain-anchor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_857800330",
+      "name": "Blockchain Anchor Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ .GLOBEX_BLOCKCHAIN_ANCHOR_URL || ((.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002') + '/api/v1/trades/' + (.trade_id || .tradeId || 'trd-1') + '/anchor') }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_63521957",
+      "name": "Blockchain Anchor HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        350,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_811656288",
+      "name": "Blockchain Anchor Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "globex/shipment-update",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "globex_703860259",
+      "name": "Shipment Update Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        1750
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ .GLOBEX_SHIPMENT_EVENT_URL || ((.GLOBEX_EXPRESS_BASE_URL || 'http://localhost:5002') + '/api/v1/trades') }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json}}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "globex_757277799",
+      "name": "Shipment Update HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        350,
+        1750
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "globex_41237495",
+      "name": "Shipment Update Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        650,
+        1750
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Analyze Trade Webhook": {
+      "main": [
+        [
+          {
+            "node": "HS Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HS Classifier": {
+      "main": [
+        [
+          {
+            "node": "Market Opportunity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Market Opportunity": {
+      "main": [
+        [
+          {
+            "node": "Trade Anomaly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trade Anomaly": {
+      "main": [
+        [
+          {
+            "node": "Compliance RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compliance RAG": {
+      "main": [
+        [
+          {
+            "node": "Counterparty Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Counterparty Match": {
+      "main": [
+        [
+          {
+            "node": "Canonical Trade Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canonical Trade Report": {
+      "main": [
+        [
+          {
+            "node": "Analyze Trade Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Buyers Webhook": {
+      "main": [
+        [
+          {
+            "node": "Match Buyers HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Buyers HTTP": {
+      "main": [
+        [
+          {
+            "node": "Match Buyers Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Uploaded Webhook": {
+      "main": [
+        [
+          {
+            "node": "Document Uploaded HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Uploaded HTTP": {
+      "main": [
+        [
+          {
+            "node": "Document Uploaded Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Trade Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Trade HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Trade HTTP": {
+      "main": [
+        [
+          {
+            "node": "Create Trade Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blockchain Anchor Webhook": {
+      "main": [
+        [
+          {
+            "node": "Blockchain Anchor HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blockchain Anchor HTTP": {
+      "main": [
+        [
+          {
+            "node": "Blockchain Anchor Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shipment Update Webhook": {
+      "main": [
+        [
+          {
+            "node": "Shipment Update HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shipment Update HTTP": {
+      "main": [
+        [
+          {
+            "node": "Shipment Update Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "globex-master-trade-os-v2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [
+    {
+      "name": "GlobeX"
+    },
+    {
+      "name": "Trade OS"
+    },
+    {
+      "name": "ML"
+    },
+    {
+      "name": "Blockchain"
+    }
+  ]
+}

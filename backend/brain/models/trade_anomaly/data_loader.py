@@ -12,8 +12,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 # Default directory paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_BRAIN = PROJECT_ROOT / "brain" if (PROJECT_ROOT / "brain").exists() else PROJECT_ROOT / "backend" / "brain"
+_BRAIN = Path(__file__).resolve().parents[2]
 RAW_CSV_PATH = _BRAIN / "data" / "final_csv" / "02_trade_anomaly_dl.csv"
 PROCESSED_DIR = _BRAIN / "processed" / "trade_anomaly"
 PARQUET_PATH = PROCESSED_DIR / "02_trade_anomaly.parquet"

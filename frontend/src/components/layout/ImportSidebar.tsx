@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Compass, Handshake } from "lucide-react";
+import { LayoutDashboard, Compass, Gauge, ShieldCheck, ClipboardList, Landmark } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -13,14 +13,13 @@ interface RailStep {
 }
 
 /**
- * Import flow's own sidebar — exactly 3 tabs: Dashboard, Marketplace, Trades.
- * Trade detail (/trades/:id) is deliberately NOT a nav item here — it's only
- * reached by clicking into a trade from the Trades page.
+ * Import flow sidebar. Importers discover suppliers and manage purchase-side
+ * requests; exporter-only listing and buyer-discovery actions stay hidden.
  */
 interface ImportSidebarProps {
   /** Renders as an always-visible block instead of the desktop-only rail (used inside the mobile drawer). */
   mobile?: boolean;
-  /** Renders in sleek dark mode (used in dark sidebar drawer). */
+  /** Renders in dark mode when embedded in a dark surface. */
   dark?: boolean;
 }
 
@@ -38,17 +37,38 @@ export const ImportSidebar: React.FC<ImportSidebarProps> = ({ mobile = false, da
     },
     {
       key: "discover",
-      label: "Marketplace",
+      label: "Find Suppliers",
       href: "/discover",
       icon: Compass,
       matchPrefixes: ["/discover", "/catalog"],
     },
     {
-      key: "trades",
-      label: "Trades",
-      href: "/trades",
-      icon: Handshake,
-      matchPrefixes: ["/trades"],
+      key: "assess",
+      label: "Assess Import",
+      href: "/assess",
+      icon: Gauge,
+      matchPrefixes: ["/assess", "/trade-analysis"],
+    },
+    {
+      key: "counterparties",
+      label: "Counterparties",
+      href: "/counterparties",
+      icon: ShieldCheck,
+      matchPrefixes: ["/counterparties", "/companies"],
+    },
+    {
+      key: "requests",
+      label: "Purchase Requests",
+      href: "/requests",
+      icon: ClipboardList,
+      matchPrefixes: ["/requests"],
+    },
+    {
+      key: "settle",
+      label: "Settlement",
+      href: "/escrow",
+      icon: Landmark,
+      matchPrefixes: ["/escrow", "/disputes", "/ledger"],
     },
   ];
 
@@ -97,7 +117,7 @@ export const ImportSidebar: React.FC<ImportSidebarProps> = ({ mobile = false, da
                       "relative z-10 w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors",
                       isActive
                         ? dark
-                          ? "bg-emerald-500 border-emerald-400 text-slate-950 font-bold"
+                          ? "bg-emerald-500 border-emerald-400 text-emerald-950 font-bold"
                           : "bg-[var(--brand)] border-[var(--brand)] text-white"
                         : isPast
                           ? dark
@@ -114,7 +134,7 @@ export const ImportSidebar: React.FC<ImportSidebarProps> = ({ mobile = false, da
                 </div>
 
                 {/* Notification dot for Trades item when trade status is updated */}
-                {step.key === "trades" && hasUnreadTradeUpdates && (
+                {step.key === "requests" && hasUnreadTradeUpdates && (
                   <span className="flex h-2 w-2 relative shrink-0 mr-1">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />

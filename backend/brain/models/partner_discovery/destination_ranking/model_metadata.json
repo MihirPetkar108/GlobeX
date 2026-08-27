@@ -1,0 +1,17 @@
+{
+  "module_name": "Destination / Market Ranking Layer",
+  "architecture_type": "Explainable Multi-Criteria Decision Analysis (MCDA) Weighted Market Opportunity Engine",
+  "version": "1.0.0",
+  "dataset_provenance": "01_partner_discovery_india_as_exporter.parquet (Derived from UN Comtrade, DGCI&S, World Bank, WITS, UN/LOCODE, GLEIF, OpenSanctions)",
+  "training_data_temporal_range": "2000-2025",
+  "total_historical_rows": 48445,
+  "active_destination_countries": 52,
+  "unique_hs6_codes": 33,
+  "product_catalog_entries": 40,
+  "status": "VALIDATED",
+  "validation_summary": {
+    "temporal_backtesting_rho": 0.8841,
+    "temporal_precision_at_5": 0.8,
+    "sensitivity_top3_stability": "High robustness across balanced, demand-heavy, and equal-weight regimes"
+  }
+}

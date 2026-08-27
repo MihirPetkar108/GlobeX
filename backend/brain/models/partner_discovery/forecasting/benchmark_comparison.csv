@@ -1,0 +1,6 @@
+Model,Demand_MAE_kg,Demand_RMSE_kg,Demand_MAPE_pct,Demand_Dir_Acc_pct,Demand_R2,Price_MAE_usd,Price_RMSE_usd,Price_MAPE_pct,Price_Dir_Acc_pct,Price_R2,Normalized_Composite_Error
+Moving Average (3-Year),25949070.0,223938065.5,29.42,64.6,0.9096,90.429,437.703,3.33,34.0,0.9992,0.1562
+Naive (Last Value),26932374.0,253935729.6,29.45,1.6,0.8838,134.292,582.408,3.31,0.0,0.9985,0.1666
+Ridge Regression,29786274.0,241467629.9,26.75,67.1,0.8949,0.155,0.162,5.53,92.0,1.0,0.1681
+Random Forest Regressor,29775061.2,248902510.8,26.34,64.3,0.8883,26.887,234.128,14.36,63.3,0.9998,0.1709
+Dual-Head GRU (Deep Learning),75187352.0,577448402.9,54.49,57.4,0.3991,240.066,1231.367,33.06,54.0,0.9935,0.4503

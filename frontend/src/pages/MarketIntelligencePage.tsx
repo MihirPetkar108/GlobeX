@@ -11,6 +11,16 @@ import { SAMPLE_DATA, aggregateByCountry } from "@/lib/tradeData";
 import { Globe2, TrendingUp, AlertCircle, RefreshCw, Sparkles, BarChart3 } from "lucide-react";
 import { aiService, MarketOpportunityResult, DestinationCountryInsight } from "@/services/api/aiService";
 import { cn } from "@/lib/utils";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
+} from "recharts";
 
 export const MarketIntelligencePage: React.FC = () => {
   const [selectedCountry, setSelectedCountry] = useState<string>("United Arab Emirates");
@@ -21,14 +31,34 @@ export const MarketIntelligencePage: React.FC = () => {
 
   const aggregatedData = useMemo(() => aggregateByCountry(SAMPLE_DATA, null), []);
 
+  // XGBoost 80% prediction band (Q10/Q90) per ranked corridor, in metric tons —
+  // the demand forecaster only returns one forward point + interval per corridor
+  // (no per-year history), so the chart compares ranked corridors' bands rather
+  // than a single corridor's time series.
+  const forecastChartData = useMemo(
+    () =>
+      opportunities
+        .filter((o) => o.forecast.demand_interval_80_lower_kg != null && o.forecast.demand_interval_80_upper_kg != null)
+        .map((o) => ({
+          iso3: o.destination.iso3,
+          country: o.destination.country_name,
+          lowerMt: Math.round((o.forecast.demand_interval_80_lower_kg as number) / 1000),
+          rangeMt: Math.round(
+            ((o.forecast.demand_interval_80_upper_kg as number) - (o.forecast.demand_interval_80_lower_kg as number)) / 1000
+          ),
+          pointMt: Math.round(o.forecast.annual_market_demand_kg / 1000),
+        })),
+    [opportunities]
+  );
+
   const fetchOpportunities = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await aiService.discoverMarketOpportunities(productQuery, 1000, "balanced", 8);
-      setOpportunities(res.topRecommendations || []);
-      if (res.topRecommendations && res.topRecommendations.length > 0) {
-        setSelectedCountry(res.topRecommendations[0].countryName);
+      setOpportunities(res.top_recommendations || []);
+      if (res.top_recommendations && res.top_recommendations.length > 0) {
+        setSelectedCountry(res.top_recommendations[0].destination.country_name);
       }
     } catch (err: any) {
       setError(err?.message || "Market Opportunity Engine (XGBoost) unreachable.");
@@ -43,7 +73,7 @@ export const MarketIntelligencePage: React.FC = () => {
 
   const activeMarket = useMemo(() => {
     return (
-      opportunities.find((c) => c.countryName === selectedCountry) ||
+      opportunities.find((c) => c.destination.country_name === selectedCountry) ||
       opportunities[0] ||
       null
     );
@@ -123,16 +153,16 @@ export const MarketIntelligencePage: React.FC = () => {
                 <div className="flex items-start justify-between border-b border-white/[0.06] pb-3">
                   <div>
                     <span className="text-[10px] font-mono uppercase text-sky-400 font-bold">
-                      {activeMarket.iso3} CORRIDOR
+                      {activeMarket.destination.iso3} CORRIDOR
                     </span>
                     <h3 className="text-xl font-display font-bold text-white mt-0.5">
-                      {activeMarket.countryName}
+                      {activeMarket.destination.country_name}
                     </h3>
                   </div>
 
                   <div className="text-right">
                     <div className="text-2xl font-mono font-bold text-emerald-400">
-                      {activeMarket.finalScore.toFixed(1)}/100
+                      {activeMarket.scores.final_score.toFixed(1)}/100
                     </div>
                     <div className="text-[10px] font-mono text-slate-500">Opportunity Score</div>
                   </div>
@@ -142,23 +172,23 @@ export const MarketIntelligencePage: React.FC = () => {
                   <div className="p-2.5 rounded-xl bg-[#070A0E] border border-white/[0.05]">
                     <span className="text-[10px] text-slate-500 uppercase block">Annual Demand</span>
                     <span className="text-emerald-400 font-bold">
-                      {(activeMarket.forecastDemandKg / 1000).toLocaleString()} MT
+                      {(activeMarket.forecast.annual_market_demand_kg / 1000).toLocaleString()} MT
                     </span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#070A0E] border border-white/[0.05]">
                     <span className="text-[10px] text-slate-500 uppercase block">Expected FOB</span>
                     <span className="text-sky-400 font-bold">
-                      ${activeMarket.forecastFobPrice.toFixed(2)}/kg
+                      ${activeMarket.forecast.expected_fob_price_usd_per_kg.toFixed(2)}/kg
                     </span>
                   </div>
                 </div>
 
-                {activeMarket.forecastInterval80 && (
+                {activeMarket.forecast.demand_interval_80_lower_kg != null && activeMarket.forecast.demand_interval_80_upper_kg != null && (
                   <div className="p-2.5 rounded-xl bg-sky-950/20 border border-sky-500/20 text-xs font-mono space-y-1">
                     <div className="flex justify-between text-[11px]">
                       <span className="text-slate-400">XGBoost 80% Band (P10–P90):</span>
                       <span className="text-sky-300 font-bold">
-                        {(activeMarket.forecastInterval80.lower_kg / 1000).toLocaleString()} – {(activeMarket.forecastInterval80.upper_kg / 1000).toLocaleString()} MT
+                        {(activeMarket.forecast.demand_interval_80_lower_kg / 1000).toLocaleString()} – {(activeMarket.forecast.demand_interval_80_upper_kg / 1000).toLocaleString()} MT
                       </span>
                     </div>
                   </div>
@@ -190,6 +220,56 @@ export const MarketIntelligencePage: React.FC = () => {
           </div>
         </div>
 
+        {/* XGBoost 80% Demand Prediction Band — Ranked Corridors */}
+        {!loading && forecastChartData.length > 0 && (
+          <div className="p-5 rounded-2xl border border-white/[0.07] bg-[#0C121D] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-mono uppercase text-slate-400">
+                <BarChart3 className="w-4 h-4 text-sky-400" />
+                <span>Forecast Demand — 80% Prediction Band (P10–P90, Metric Tons)</span>
+              </div>
+              <span className="text-[10px] font-mono text-emerald-400">XGBoost Quantile Forecaster</span>
+            </div>
+            <div className="h-[260px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={forecastChartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="iso3" stroke="#64748B" fontSize={11} tickLine={false} axisLine={{ stroke: "rgba(255,255,255,0.08)" }} />
+                  <YAxis
+                    stroke="#64748B"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: number) => `${v.toLocaleString()}`}
+                    label={{ value: "MT", angle: -90, position: "insideLeft", fill: "#64748B", fontSize: 10 }}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: "#070A0E", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 11 }}
+                    labelStyle={{ color: "#E2E8F0" }}
+                    formatter={(value: number, name: string, props: any) => {
+                      if (name === "rangeMt") {
+                        const lower = props.payload.lowerMt;
+                        const upper = lower + value;
+                        return [`${lower.toLocaleString()} – ${upper.toLocaleString()} MT`, "P10–P90 band"];
+                      }
+                      return [`${value.toLocaleString()} MT`, "Forecast"];
+                    }}
+                    labelFormatter={(_label: string, payload: any) => payload?.[0]?.payload?.country || _label}
+                  />
+                  {/* Invisible base bar to float the range bar at its lower bound */}
+                  <Bar dataKey="lowerMt" stackId="band" fill="transparent" isAnimationActive={false} />
+                  <Bar dataKey="rangeMt" stackId="band" fill="#0284C7" fillOpacity={0.35} radius={[4, 4, 4, 4]} isAnimationActive={false}>
+                    {forecastChartData.map((entry) => (
+                      <Cell key={entry.iso3} stroke="#0284C7" strokeWidth={1} />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="pointMt" stackId="point" fill="#0F9D6B" barSize={3} isAnimationActive={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
         {/* Ranked Corridor Candidate List */}
         {!loading && opportunities.length > 0 && (
           <div className="space-y-3 pt-2">
@@ -202,21 +282,21 @@ export const MarketIntelligencePage: React.FC = () => {
               {opportunities.map((opp, idx) => (
                 <div
                   key={opp.iso3}
-                  onClick={() => setSelectedCountry(opp.countryName)}
+                  onClick={() => setSelectedCountry(opp.destination.country_name)}
                   className={cn(
                     "p-3.5 rounded-xl border transition-all cursor-pointer space-y-2",
-                    selectedCountry === opp.countryName
+                    selectedCountry === opp.destination.country_name
                       ? "bg-sky-500/10 border-sky-500/40"
                       : "bg-[#070A0E] border-white/[0.06] hover:border-white/[0.12]"
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs text-slate-500 font-bold">#{idx + 1}</span>
-                    <span className="font-mono text-xs text-emerald-400 font-bold">{opp.finalScore.toFixed(1)}/100</span>
+                    <span className="font-mono text-xs text-emerald-400 font-bold">{opp.scores.final_score.toFixed(1)}/100</span>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white">{opp.countryName}</h4>
-                    <span className="text-[11px] font-mono text-slate-400">{(opp.forecastDemandKg / 1000).toLocaleString()} MT Forecast</span>
+                    <h4 className="text-sm font-bold text-white">{opp.destination.country_name}</h4>
+                    <span className="text-[11px] font-mono text-slate-400">{(opp.forecast.annual_market_demand_kg / 1000).toLocaleString()} MT Forecast</span>
                   </div>
                 </div>
               ))}

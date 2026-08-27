@@ -61,15 +61,15 @@ class N8nWorkflowService {
   public async checkHealth(): Promise<{ isOnline: boolean; url: string; error?: string }> {
     try {
       // Browser-safe probe to n8n webhook listener (no-cors prevents preflight rejection)
-      await fetch(`${this.webhookBaseUrl}/globex-analyze-trade-v2`, {
+      await fetch(`${this.webhookBaseUrl}/globex-analyze-trade`, {
         method: "POST",
         mode: "no-cors",
         body: JSON.stringify({ probe: true, product: "Basmati Rice", origin_country: "IND", destination_country: "ARE", quantity_kg: 50000 }),
         signal: AbortSignal.timeout(2500),
       });
-      return { isOnline: true, url: `${this.webhookBaseUrl}/globex-analyze-trade-v2` };
+      return { isOnline: true, url: `${this.webhookBaseUrl}/globex-analyze-trade` };
     } catch (err: any) {
-      return { isOnline: false, url: `${this.webhookBaseUrl}/globex-analyze-trade-v2`, error: err?.message || "Unreachable" };
+      return { isOnline: false, url: `${this.webhookBaseUrl}/globex-analyze-trade`, error: err?.message || "Unreachable" };
     }
   }
 
@@ -167,7 +167,7 @@ class N8nWorkflowService {
     payload: AnalyzeTradePayload
   ): Promise<WorkflowExecutionResult> {
     return this.callWebhook(
-      "globex-analyze-trade-v2",
+      "globex-analyze-trade",
       payload as unknown as Record<string, unknown>,
       "wf_trade_intelligence_02",
       "WF-02: GlobeXAI Production Trade Automation OS v2 (Schema-Corrected)"

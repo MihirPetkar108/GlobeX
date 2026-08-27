@@ -23,7 +23,7 @@ export const AdminSystemPage: React.FC = () => {
       <div className="space-y-5 select-none">
         <PageHeader
           title="System Architecture & Infrastructure"
-          subtitle="Real-time health telemetry across Appwrite BaaS, n8n Orchestrator, FastAPI Microservices, and EVM Blockchain."
+          subtitle="Real-time health telemetry across Supabase, Express services, n8n Orchestrator, and EVM Blockchain."
           badge={<StatusBadge status="verified" label="All Services Operational" size="md" />}
         />
 
@@ -88,7 +88,7 @@ export const AdminSystemPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Pillar 3: FastAPI AI Services */}
+          {/* Pillar 3: Express Intelligence Services */}
           <div className="p-5 rounded-2xl bg-[var(--surface-1)] border border-[var(--hairline)] space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--hairline)] pb-3">
               <div className="flex items-center gap-2.5">
@@ -96,7 +96,7 @@ export const AdminSystemPage: React.FC = () => {
                   <Cpu className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-mono text-xs font-bold text-[var(--text-primary)]">FastAPI AI Microservices</h3>
+                  <h3 className="font-mono text-xs font-bold text-[var(--text-primary)]">Express Intelligence Services</h3>
                   <div className="text-[10px] font-mono text-[var(--text-secondary)]">Inference Latency: ~45ms</div>
                 </div>
               </div>

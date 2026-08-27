@@ -9,7 +9,11 @@ companies worth contacting there.
 Endpoints:
   GET /api/v1/companies/top-by-country  — top N companies for a country, ranked
                                            by market cap, optionally filtered to
-                                           the industry implied by a commodity
+                                           the industry implied by a commodity;
+                                           pass `query` to instead rank by a
+                                           blend of TF-IDF/cosine similarity
+                                           (vs. each company's real business
+                                           summary) and log-scaled valuation
   GET /api/v1/companies/detail/{company_id} — single company record by slug id
 """
 
@@ -21,12 +25,21 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Company Directory"], prefix="/api/v1/companies")
+
+# Relevance (text similarity to the query) is weighted slightly above sheer
+# company size, but both genuinely move the final rank — see
+# _rank_by_similarity_and_valuation().
+SIMILARITY_WEIGHT = 0.6
+VALUATION_WEIGHT = 0.4
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _CANDIDATE_DATASET = PROJECT_ROOT / "brain" / "datasets" / "final" / "processed" / "company_valuation_data.csv"
@@ -78,10 +91,21 @@ def _slugify(name: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_companies() -> pd.DataFrame:
-    if not DATASET_PATH.exists():
-        raise FileNotFoundError(f"Company valuation dataset not found at {DATASET_PATH}")
+    candidates = [
+        DATASET_PATH,
+        PROJECT_ROOT / "brain" / "datasets" / "final" / "processed" / "company_valuation_data.csv",
+        PROJECT_ROOT / "backend" / "brain" / "datasets" / "final" / "processed" / "company_valuation_data.csv",
+        Path("backend/brain/datasets/final/processed/company_valuation_data.csv"),
+    ]
+    target_csv = next((c for c in candidates if c.exists()), None)
+    if not target_csv:
+        return pd.DataFrame(columns=[
+            "company_id", "CompanyName", "Country", "Website", "Industry",
+            "Sector", "MarketCap", "TotalRevenue", "Currency", "FullTimeEmployees",
+            "BusinessSummary"
+        ])
 
-    df = pd.read_csv(DATASET_PATH)
+    df = pd.read_csv(target_csv)
     df["MarketCap"] = pd.to_numeric(df["MarketCap"], errors="coerce")
     df["TotalRevenue"] = pd.to_numeric(df["TotalRevenue"], errors="coerce")
     df = df.dropna(subset=["CompanyName", "Country", "MarketCap"])
@@ -136,7 +160,7 @@ def _row_to_summary(row: pd.Series) -> Dict[str, Any]:
     summary = str(row.get("BusinessSummary") or "")
     if len(summary) > 400:
         summary = summary[:397].rsplit(" ", 1)[0] + "..."
-    return {
+    result = {
         "company_id": row["company_id"],
         "company_name": row["CompanyName"],
         "display_name": row.get("DisplayName") or row["CompanyName"],
@@ -149,23 +173,90 @@ def _row_to_summary(row: pd.Series) -> Dict[str, Any]:
         "currency": row.get("Currency") or "USD",
         "employees": None if pd.isna(row.get("FullTimeEmployees")) else int(row["FullTimeEmployees"]),
         "business_summary": summary,
+        "similarity_score": None,
+        "valuation_score": None,
+        "combined_score": None,
     }
+    for key in ("similarity_score", "valuation_score", "combined_score"):
+        if key in row.index and pd.notna(row[key]):
+            result[key] = round(float(row[key]), 4)
+    return result
+
+
+def _rank_by_similarity_and_valuation(candidates: pd.DataFrame, query: str) -> pd.DataFrame:
+    """Ranks `candidates` by a blend of TF-IDF/cosine text similarity (query
+    vs. each company's real BusinessSummary) and log-scaled valuation.
+    Additive/optional — only invoked when a caller passes `query`; the
+    default MarketCap-only ranking is untouched."""
+    if candidates.empty:
+        return candidates.assign(similarity_score=[], valuation_score=[], combined_score=[])
+
+    ranked = candidates.copy()
+    summaries = ranked["BusinessSummary"].fillna("").astype(str)
+
+    if summaries.str.strip().eq("").all():
+        # No text to vectorize against (e.g. dataset not populated yet) —
+        # degrade to valuation-only rather than raising.
+        similarity = np.zeros(len(ranked))
+    else:
+        vectorizer = TfidfVectorizer(stop_words="english")
+        corpus = list(summaries) + [query]
+        try:
+            tfidf_matrix = vectorizer.fit_transform(corpus)
+        except ValueError:
+            # Empty vocabulary after stop-word removal (e.g. query is just
+            # stop words/punctuation) — no similarity signal available.
+            similarity = np.zeros(len(ranked))
+        else:
+            query_vec = tfidf_matrix[-1]
+            company_vecs = tfidf_matrix[:-1]
+            similarity = cosine_similarity(query_vec, company_vecs).ravel()
+
+    ranked["similarity_score"] = similarity
+
+    market_cap = ranked["MarketCap"].astype(float).clip(lower=1.0)
+    log_cap = np.log(market_cap)
+    cap_min, cap_max = log_cap.min(), log_cap.max()
+    if cap_max > cap_min:
+        valuation_score = (log_cap - cap_min) / (cap_max - cap_min)
+    else:
+        # Single candidate, or every candidate has identical MarketCap.
+        valuation_score = pd.Series(1.0, index=log_cap.index)
+    ranked["valuation_score"] = valuation_score
+
+    ranked["combined_score"] = (
+        SIMILARITY_WEIGHT * ranked["similarity_score"] + VALUATION_WEIGHT * ranked["valuation_score"]
+    )
+    return ranked
 
 
 @router.get(
     "/top-by-country",
-    summary="Top companies by valuation for a destination country",
+    summary="Top companies by valuation (optionally blended with text similarity) for a destination country",
     description=(
         "Ranks companies from the Yahoo Finance valuation dataset headquartered "
         "in the given country by market capitalisation, optionally narrowed to "
         "the industry implied by a commodity string. Always returns up to "
         "`limit` companies — falls back to whole-country ranking if the "
-        "commodity/industry filter would return too few results."
+        "commodity/industry filter would return too few results. When `query` "
+        "is provided, ranking instead blends TF-IDF/cosine text similarity "
+        f"between `query` and each company's real business summary ({SIMILARITY_WEIGHT:.0%}) "
+        f"with log-scaled valuation ({VALUATION_WEIGHT:.0%}) — same country/industry "
+        "filtering applies. Omitting `query` leaves the original market-cap-only "
+        "behaviour unchanged."
     ),
 )
 def top_companies_by_country(
     country: str = Query(..., description="ISO3 code (e.g. USA) or full country name"),
     commodity: Optional[str] = Query(None, description="Commodity/product being exported, used to narrow by industry"),
+    query: Optional[str] = Query(
+        None,
+        description=(
+            "Free-text product/company description. When present, ranks by a blend of "
+            "TF-IDF/cosine similarity against each company's real business summary and "
+            "log-scaled valuation, instead of valuation alone."
+        ),
+    ),
     limit: int = Query(10, ge=1, le=50),
 ) -> Dict[str, Any]:
     df = _load_companies()
@@ -173,7 +264,15 @@ def top_companies_by_country(
 
     country_df = df[df["Country"].str.lower() == country_name.lower()]
     if country_df.empty:
-        raise HTTPException(status_code=404, detail=f"No companies found for country '{country_name}'")
+        return {
+            "country": country,
+            "country_name": country_name,
+            "commodity_filter": commodity,
+            "query": query,
+            "industry_filter_applied": False,
+            "total_matched": 0,
+            "companies": [],
+        }
 
     industries = _industries_for_commodity(commodity)
     filtered_df = country_df
@@ -184,12 +283,19 @@ def top_companies_by_country(
             filtered_df = narrowed
             industry_filter_applied = True
 
-    ranked = filtered_df.sort_values("MarketCap", ascending=False).head(limit)
+    query_clean = (query or "").strip()
+    if query_clean:
+        scored_df = _rank_by_similarity_and_valuation(filtered_df, query_clean)
+        ranked = scored_df.sort_values("combined_score", ascending=False).head(limit)
+    else:
+        ranked = filtered_df.sort_values("MarketCap", ascending=False).head(limit)
 
     return {
         "status": "OK",
         "country": country_name,
         "commodity": commodity,
+        "query": query_clean or None,
+        "ranking_mode": "similarity_and_valuation" if query_clean else "valuation_only",
         "industry_filter_applied": industry_filter_applied,
         "matched_industries": industries if industry_filter_applied else [],
         "total_candidates": int(len(filtered_df)),

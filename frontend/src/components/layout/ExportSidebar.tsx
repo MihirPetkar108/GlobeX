@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { Workflow, FilePlus2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Gauge, FilePlus2, ClipboardList, Landmark } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -13,9 +13,8 @@ interface RailStep {
 }
 
 /**
- * Export flow's own sidebar — exactly 3 tabs: Export Trades (landing),
- * Create Listing, Discover. Fully separate from the Import sidebar; the two
- * flows no longer share one direction-aware rail.
+ * Export flow sidebar. Exporters discover demand, publish supply, and manage
+ * outbound requests; importer-only supplier browsing stays hidden.
  */
 interface ExportSidebarProps {
   /** Renders as an always-visible block instead of the desktop-only rail (used inside the mobile drawer). */
@@ -30,25 +29,46 @@ export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, da
 
   const steps: RailStep[] = [
     {
-      key: "export-trades",
-      label: "Export Trades",
-      href: "/export-trades",
-      icon: Workflow,
-      matchPrefixes: ["/export-trades"],
+      key: "dashboard",
+      label: "Dashboard",
+      href: "/home",
+      icon: LayoutDashboard,
+      matchPrefixes: ["/home"],
     },
     {
-      key: "export-listings",
-      label: "Create Listing",
-      href: "/export-listings",
-      icon: FilePlus2,
-      matchPrefixes: ["/export-listings"],
-    },
-    {
-      key: "export-discover",
-      label: "Discover",
+      key: "discover",
+      label: "Discover Opportunities",
       href: "/export-discover",
       icon: TrendingUp,
       matchPrefixes: ["/export-discover"],
+    },
+    {
+      key: "assess",
+      label: "Assess Export",
+      href: "/assess",
+      icon: Gauge,
+      matchPrefixes: ["/assess", "/trade-analysis"],
+    },
+    {
+      key: "listings",
+      label: "My Listings",
+      href: "/export-listings",
+      icon: FilePlus2,
+      matchPrefixes: ["/export-listings", "/catalog"],
+    },
+    {
+      key: "requests",
+      label: "Export Requests",
+      href: "/export-trades",
+      icon: ClipboardList,
+      matchPrefixes: ["/export-trades"],
+    },
+    {
+      key: "settle",
+      label: "Settlement",
+      href: "/escrow",
+      icon: Landmark,
+      matchPrefixes: ["/escrow", "/disputes", "/ledger"],
     },
   ];
 
@@ -97,7 +117,7 @@ export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, da
                       "relative z-10 w-7 h-7 rounded-full border flex items-center justify-center shrink-0 transition-colors",
                       isActive
                         ? dark
-                          ? "bg-emerald-500 border-emerald-400 text-slate-950 font-bold"
+                          ? "bg-emerald-500 border-emerald-400 text-emerald-950 font-bold"
                           : "bg-[var(--brand)] border-[var(--brand)] text-white"
                         : isPast
                           ? dark
@@ -114,7 +134,7 @@ export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, da
                 </div>
 
                 {/* Notification dot for Export Trades item when a request/status is updated */}
-                {step.key === "export-trades" && hasUnreadTradeUpdates && (
+                {step.key === "requests" && hasUnreadTradeUpdates && (
                   <span className="flex h-2 w-2 relative shrink-0 mr-1">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />

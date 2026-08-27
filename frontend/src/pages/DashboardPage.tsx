@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { FLAGSHIP_DEMO_TRADE } from "@/data/mockTradeData";
 import { AppShell } from "@/components/layout/AppShell";
 import TradeGlobe from "@/components/TradeGlobe";
 import { cn } from "@/lib/utils";
+import { aiService, DestinationCountryInsight } from "@/services/api/aiService";
 import {
   LayoutDashboard,
   Compass,
@@ -20,6 +21,8 @@ import {
   ChevronUp,
   Globe as GlobeIcon,
   TrendingUp,
+  Sparkles,
+  AlertCircle,
   Menu,
   X,
 } from "lucide-react";
@@ -129,7 +132,34 @@ export const DashboardPage: React.FC = () => {
 
   const currentTrades = activeMode === "import" ? importTrades : exportTrades;
 
-  // Dashboard specific constants can go here if needed.
+  // AI Market Signal — top-ranked destination corridor from the real XGBoost
+  // market-opportunity engine, shown as a compact dashboard tile so the ML
+  // pipeline is visible without navigating to Market Intelligence.
+  const [topOpportunity, setTopOpportunity] = useState<DestinationCountryInsight | null>(null);
+  const [signalLoading, setSignalLoading] = useState<boolean>(true);
+  const [signalError, setSignalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSignalLoading(true);
+    setSignalError(null);
+    aiService
+      .discoverMarketOpportunities("Basmati Rice", 50000, "balanced", 1)
+      .then((res) => {
+        if (cancelled) return;
+        setTopOpportunity(res.top_recommendations?.[0] || null);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setSignalError(err?.message || "Market opportunity engine unreachable.");
+      })
+      .finally(() => {
+        if (!cancelled) setSignalLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AppShell maxWidth="full" hideRail={true}>
@@ -242,6 +272,61 @@ export const DashboardPage: React.FC = () => {
                 )} />
               </div>
             </button>
+          </section>
+
+          {/* ── AI MARKET SIGNAL: top-ranked corridor from the live XGBoost engine ── */}
+          <section aria-label="AI Market Signal" className="w-full">
+            <Link
+              to="/market-intelligence"
+              className="block p-4 sm:p-5 rounded-2xl border border-slate-200/80 bg-white hover:border-emerald-300 hover:shadow-md transition-all group"
+            >
+              {signalLoading && (
+                <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+                  <span className="w-4 h-4 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+                  <span>Running XGBoost demand forecast &amp; risk models…</span>
+                </div>
+              )}
+
+              {!signalLoading && signalError && (
+                <div className="flex items-center gap-2 text-xs font-mono text-amber-700">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>AI Market Signal unavailable — {signalError}</span>
+                </div>
+              )}
+
+              {!signalLoading && !signalError && topOpportunity && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono font-bold text-emerald-600 uppercase tracking-widest block">
+                        AI Market Signal · Top Opportunity
+                      </span>
+                      <span className="text-sm font-bold text-slate-900">
+                        {topOpportunity.destination.country_name} — {topOpportunity.scores.final_score.toFixed(1)}/100 opportunity score
+                        <span
+                          className={cn(
+                            "ml-2 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase",
+                            topOpportunity.risk.risk_level === "LOW"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : topOpportunity.risk.risk_level === "MODERATE"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-rose-100 text-rose-700"
+                          )}
+                        >
+                          {topOpportunity.risk.risk_level} RISK
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-500 group-hover:text-emerald-600 flex items-center gap-1 shrink-0">
+                    View Market Intelligence <ArrowRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              )}
+            </Link>
           </section>
 
           {/* ── 4. MIDDLE SECTION: LIGHTWEIGHT SUMMARY STATS & CENTRAL 3D GLOBE ── */}

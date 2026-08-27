@@ -207,7 +207,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       // ───────────────────────────────────────────────────────────
-      // Case 3: FastAPI Backend Server Offline
+      // Case 3: Express Backend Server Offline
       // ───────────────────────────────────────────────────────────
       if (isBackendError) {
         return (
@@ -222,10 +222,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   BACKEND SERVICE OFFLINE
                 </span>
                 <h2 className="text-2xl font-display font-bold text-white">
-                  FastAPI Engine Unreachable
+                  Express API Unreachable
                 </h2>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Could not establish connection to the GlobeX Trade OS backend service at <code className="text-rose-300 font-mono">http://localhost:8000</code>.
+                  Could not establish connection to the GlobeX Express API service. Check <code className="text-rose-300 font-mono">VITE_API_URL</code> and backend port.
                 </p>
               </div>
 

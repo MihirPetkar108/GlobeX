@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "input_request_schema": {
+    "product": {
+      "type": "string",
+      "required": true,
+      "example": "Basmati Rice"
+    },
+    "quantity_kg": {
+      "type": "float",
+      "required": false,
+      "default": 1000.0,
+      "example": 1000.0
+    },
+    "top_n": {
+      "type": "integer",
+      "required": false,
+      "default": 5,
+      "example": 5
+    },
+    "hs6": {
+      "type": "integer",
+      "required": false,
+      "default": null,
+      "example": 100630
+    },
+    "custom_weights": {
+      "type": "object",
+      "required": false,
+      "default": null
+    }
+  },
+  "output_response_schema": {
+    "rank": "integer",
+    "country": "string",
+    "iso3": "string",
+    "hs6": "integer",
+    "product": "string",
+    "final_score": "float [0-100]",
+    "demand_score": "float [0-100]",
+    "growth_score": "float [0-100]",
+    "access_score": "float [0-100]",
+    "economic_score": "float [0-100]",
+    "logistics_score": "float [0-100]",
+    "buyer_score": "float [0-100]",
+    "stability_score": "float [0-100]",
+    "risk_adjustment": "float [0-100]",
+    "quantity_fit": "float [0-100]",
+    "recent_export_weight_kg": "float",
+    "recent_export_value_usd": "float",
+    "tariff_rate": "float",
+    "rta": "string",
+    "risk_flag": "string",
+    "reason_codes": "string"
+  },
+  "dimension_features": {
+    "demand": [
+      "recent_3y_avg_export_weight",
+      "recent_3y_avg_export_value",
+      "latest_year_export_weight",
+      "destination_market_share_latest"
+    ],
+    "growth": [
+      "export_weight_cagr_3y",
+      "export_value_cagr_3y",
+      "recent_weight_growth"
+    ],
+    "access": [
+      "destination_applied_tariff_rate",
+      "tariff_preference_margin",
+      "rta_exists"
+    ],
+    "economic_capacity": [
+      "destination_gdp",
+      "destination_gdp_per_capita",
+      "destination_gdp_growth",
+      "destination_population"
+    ],
+    "logistics": [
+      "destination_port_count",
+      "destination_airport_count",
+      "destination_inland_terminal_count",
+      "destination_locode_count"
+    ],
+    "buyer_ecosystem": [
+      "gleif_buyer_count",
+      "gleif_active_buyer_count"
+    ],
+    "stability": [
+      "activity_ratio",
+      "years_active"
+    ],
+    "risk": [
+      "sanctions_present",
+      "ofac_entity_count",
+      "scomet_match_flag"
+    ]
+  }
+}

@@ -1,7 +1,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 import AppNav from "@/components/layout/AppNav";
-import LifecycleRail from "@/components/layout/LifecycleRail";
+import ImportSidebar from "@/components/layout/ImportSidebar";
+import ExportSidebar from "@/components/layout/ExportSidebar";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     full: "max-w-full",
   }[maxWidth];
 
-  const { activeDirection } = useWorkspace();
+  const { activeDirection, isExporterView } = useWorkspace();
 
   return (
     <div className="min-h-screen bg-[var(--surface-0)] text-[var(--text-primary)] font-sans flex flex-col antialiased selection:bg-[var(--brand-subtle)] selection:text-[var(--brand)]">
@@ -53,19 +54,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           dead gap on wide screens. The content column alone is capped and
           centered within whatever width remains to its right. */}
       <div className="flex-1 w-full flex items-start">
-        {/* Full-width Main Operations Surface.
-            No AnimatePresence/exit animation here: the outer route-level
-            AnimatePresence in App.tsx's AnimatedRoutes already owns the
-            enter/exit transition for this entire subtree (keyed on
-            location.pathname). A second AnimatePresence in here, keyed on
-            activeDirection, created two independent mode="wait" boundaries
-            racing each other on every route change and caused a real,
-            reproduced bug: navigating between two pages under the same
-            direction (e.g. /assess -> /escrow) updated the URL but left the
-            old page's DOM stuck on screen, because the outer boundary tried
-            to unmount this subtree while the inner one — whose key hadn't
-            changed — never fired its own exit-complete signal. Simple
-            per-mount fade only; no exit, no nested AnimatePresence. */}
+        {!hideRail && (isExporterView ? <ExportSidebar /> : <ImportSidebar />)}
         <div className="flex-1 min-w-0 px-3 sm:px-6">
           <motion.main
             key={activeDirection}

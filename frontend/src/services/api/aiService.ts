@@ -1,7 +1,7 @@
 /**
- * FastAPI AI/ML Microservice Client & Trade RAG Pipeline
+ * Express AI/ML API Client & Trade RAG Pipeline
  * Handles HS classification, counterparty matching, trade risk scoring, and regulatory compliance RAG.
- * Easily connects to external FastAPI / PyTorch models via VITE_FASTAPI_AI_URL.
+ * Uses GlobeX Express API via VITE_API_URL.
  */
 
 import { TopBuyer, TOP_BUYERS_DATA } from "@/data/mockTradeData";
@@ -66,11 +66,19 @@ export interface CompanyDirectoryEntry {
   currency: string;
   employees: number | null;
   businessSummary: string;
+  // Present only when the request included a `query` — TF-IDF/cosine
+  // similarity blended with log-scaled valuation (see backend
+  // company_directory_controller.py::_rank_by_similarity_and_valuation).
+  similarityScore: number | null;
+  valuationScore: number | null;
+  combinedScore: number | null;
 }
 
 export interface TopCompaniesResult {
   country: string;
   commodity: string | null;
+  query: string | null;
+  rankingMode: "valuation_only" | "similarity_and_valuation";
   industryFilterApplied: boolean;
   matchedIndustries: string[];
   totalCandidates: number;
@@ -94,6 +102,13 @@ export interface BuyerMatchResponse {
   data_source?: string;
 }
 
+export interface HSCodeSearchMatch {
+  hs6: number;
+  hsCodeFormatted: string;
+  productDescription: string;
+  score: number;
+}
+
 export interface HSClassificationResult {
   hsCode: string;
   category: string;
@@ -110,15 +125,15 @@ export interface CounterpartyMatchResult {
   trustScore: number;
   matchScore: number;
   breakdown: {
-    productFit: number;
-    quantityFit: number;
-    priceFit: number;
-    certificationFit: number;
-    trustScoreWeight: number;
-    riskDeduction: number;
+    productFit: number | null;
+    quantityFit: number | null;
+    priceFit: number | null;
+    certificationFit: number | null;
+    trustScoreWeight: number | null;
+    riskDeduction: number | null;
   };
   certifications: string[];
-  historicalVolumeMT: number;
+  historicalVolumeMT: number | null;
   disputeRate: string;
   explanation: string;
   dataSource?: "live" | "fallback";
@@ -286,6 +301,9 @@ export interface DestinationCountryInsight {
   };
   pros: string[];
   cons: string[];
+  // Optional live enrichments used by the exporter Discover flow.
+  tradeRiskAnalysis?: TradeAnomalyResult;
+  counterpartyMatches?: CounterpartyMatchResult[];
 }
 
 export interface MarketOpportunityResult {
@@ -476,7 +494,7 @@ class AIService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
+    this.baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
   }
 
   /**
@@ -493,7 +511,8 @@ class AIService {
 
     // 1. Resolve HS Code
     const hs = await this.classifyHSCode(payload.productName, `${payload.quantity} ${payload.unit}`, originIso3, destIso3);
-    const hs6Int = parseInt(hs.hsCode.replace(/\D/g, "").slice(0, 6), 10) || 100630;
+    const hs6Int = parseInt(hs.hsCode.replace(/\D/g, "").slice(0, 6), 10);
+    if (!Number.isFinite(hs6Int)) throw new Error("HS classification returned an invalid HS6 code.");
 
     // 2. Concurrently execute downstream ML services
     const [marketOpp, anomaly, compliance, exporters] = await Promise.all([
@@ -571,6 +590,23 @@ class AIService {
     };
   }
 
+  // Live prefix/substring HS6 autocomplete — real catalogue search, not a
+  // static client-side list. Used by the Discover Opportunity product search box.
+  public async searchHSCodes(q: string): Promise<HSCodeSearchMatch[]> {
+    const query = q.trim();
+    if (!query) return [];
+    const res = await fetch(`${this.baseUrl}/predict/hs-code/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+    if (!data || !Array.isArray(data.results)) return [];
+    return data.results.map((r: any) => ({
+      hs6: r.hs6,
+      hsCodeFormatted: r.hs_code_formatted,
+      productDescription: r.product_description,
+      score: r.score,
+    }));
+  }
+
   // 2. Partner Discovery / Market Opportunity
   public async rankMarketOpportunity(
     product: string,
@@ -593,6 +629,61 @@ class AIService {
     }
     const data = await res.json();
     return { ...data, dataSource: "live" };
+  }
+
+  // Compatibility alias used by the Market Intelligence page.
+  public async discoverMarketOpportunities(
+    product: string,
+    quantityKg?: number,
+    regime: string = "balanced",
+    topN: number = 5
+  ): Promise<MarketOpportunityResult> {
+    return this.rankMarketOpportunity(product, quantityKg, regime, topN);
+  }
+
+  // ML gateway methods kept available for the compliance/document panels.
+  private async postModel(path: string, payload: Record<string, unknown>): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`${path} failed (${res.status}): ${data.detail || res.statusText}`);
+    return data;
+  }
+
+  public async synthesizeCountryProsCons(insightData: unknown): Promise<any> {
+    try {
+      return await this.postModel("/predict/market-opportunity/synthesize-pros-cons", { insight_data: insightData });
+    } catch {
+      const data: any = insightData || {};
+      return { executive_summary: "Country insight available from the ranking model.", structured_pros: (data.pros || []).map((text: string) => ({ text })), structured_cons: (data.cons || []).map((text: string) => ({ text })), negotiation_leverage: null, synthesized_by_llm: false, model_used: null };
+    }
+  }
+
+  public async sanctionsScreen(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/compliance/sanctions-screen", payload);
+  }
+
+  public async counterpartyRisk(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/predict/counterparty-risk", payload);
+  }
+
+  public async extractTradeDocument(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/documents/ocr-extract", payload);
+  }
+
+  public async evaluateTransactionGate(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/compliance/transaction-gate", payload);
+  }
+
+  public async evaluateDocumentVerdict(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/compliance/doc-verdict", payload);
+  }
+
+  public async synthesizeTradeScore(payload: Record<string, unknown>): Promise<any> {
+    return this.postModel("/compliance/trade-synthesis", payload);
   }
 
   // 3. Trade Anomaly Detection
@@ -651,7 +742,7 @@ class AIService {
       return [];
     }
     return data.counterparties.map((cp: any) => ({
-      exporterId: cp.organization_id || `ORG-${Math.random().toString(36).slice(2, 7)}`,
+      exporterId: cp.organization_id,
       companyName: cp.name,
       originCountry: cp.country_name || cp.country || destinationCountry,
       port: cp.port || "Origin Commercial Port",
@@ -660,17 +751,17 @@ class AIService {
       creditRating: cp.credit_rating || "AA+",
       sanctionsStatus: cp.sanctions_status || "CLEARED / 0 RESTRICTIONS",
       breakdown: {
-        productFit: 25,
-        quantityFit: 20,
-        priceFit: 19,
-        certificationFit: 15,
-        trustScoreWeight: 20,
-        riskDeduction: -3,
+        productFit: cp.breakdown?.product_fit ?? null,
+        quantityFit: cp.breakdown?.quantity_fit ?? null,
+        priceFit: cp.breakdown?.price_fit ?? null,
+        certificationFit: cp.breakdown?.certification_fit ?? null,
+        trustScoreWeight: cp.breakdown?.trust_score_weight ?? null,
+        riskDeduction: cp.breakdown?.risk_deduction ?? null,
       },
       certifications: cp.certifications || ["ISO 22000", "HACCP"],
-      historicalVolumeMT: 14800,
-      disputeRate: "0.0%",
-      explanation: `Verified supplier for ${query} in ${cp.country || destinationCountry} corridor (${cp.port || 'Maritime Port'}).`,
+      historicalVolumeMT: cp.historical_volume_mt ?? null,
+      disputeRate: cp.dispute_rate ?? "Unavailable",
+      explanation: cp.explanation || `Verified supplier match for ${query}.`,
       dataSource: "live" as const,
     }));
   }
@@ -725,7 +816,8 @@ class AIService {
     tradeValueUSD?: number,
     certifications?: string[]
   ): Promise<ComplianceAnalysis> {
-    const hs6Int = parseInt(hsCode.replace(/\D/g, "").slice(0, 6), 10) || 100630;
+    const hs6Int = parseInt(hsCode.replace(/\D/g, "").slice(0, 6), 10);
+    if (!Number.isFinite(hs6Int)) throw new Error("Compliance analysis requires a valid HS6 code.");
     const res = await fetch(`${this.baseUrl}/compliance/rag-analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -745,9 +837,9 @@ class AIService {
     }
     const data = await res.json();
     return {
-      tariffRate: `${data.tariff?.preferential_rate_pct ?? 0.0}%`,
-      standardMFNRate: `${data.tariff?.standard_mfn_rate_pct ?? 5.0}%`,
-      tradeAgreement: data.tariff?.agreement || "Bilateral Trade Agreement",
+      tariffRate: data.tariff?.preferential_rate_pct == null ? "Unavailable" : `${data.tariff.preferential_rate_pct}%`,
+      standardMFNRate: data.tariff?.standard_mfn_rate_pct == null ? "Unavailable" : `${data.tariff.standard_mfn_rate_pct}%`,
+      tradeAgreement: data.tariff?.agreement || "Unavailable",
       estimatedSavingsUSD: data.tariff?.duty_savings_usd ?? null,
       ntmBarriers: data.ntm_barriers || [],
       mandatoryDocuments: (data.required_documents || []).map((d: any) => ({
@@ -989,6 +1081,8 @@ class AIService {
     return {
       country: data.country,
       commodity: data.commodity ?? null,
+      query: data.query ?? null,
+      rankingMode: data.ranking_mode === "similarity_and_valuation" ? "similarity_and_valuation" : "valuation_only",
       industryFilterApplied: !!data.industry_filter_applied,
       matchedIndustries: data.matched_industries || [],
       totalCandidates: data.total_candidates || 0,
@@ -1005,8 +1099,26 @@ class AIService {
         currency: c.currency || "USD",
         employees: c.employees,
         businessSummary: c.business_summary || "",
+        similarityScore: c.similarity_score ?? null,
+        valuationScore: c.valuation_score ?? null,
+        combinedScore: c.combined_score ?? null,
       })),
     };
+  }
+
+  /**
+   * Ranks companies in `country` by a blend of TF-IDF/cosine text similarity
+   * (query vs. each company's real business summary) and log-scaled
+   * valuation — same endpoint as getTopCompaniesByCountry, with `query` set.
+   * Used by the "click a country -> top companies" flow on Discover Opportunity.
+   */
+  public async getCompaniesBySimilarity(
+    country: string,
+    query: string,
+    commodity?: string,
+    limit: number = 10
+  ): Promise<TopCompaniesResult> {
+    return this.getTopCompaniesByCountry(country, commodity, limit, query);
   }
 
   public async getCompanyDetail(companyId: string): Promise<CompanyDirectoryEntry> {
@@ -1121,7 +1233,7 @@ class AIService {
   public getStatus() {
     return {
       baseUrl: this.baseUrl,
-      engine: "FastAPI + PyTorch + Sentence-Transformers RAG",
+      engine: "Express gateway + backend/brain ML services",
       latencyMs: "32ms",
       endpoints: [
         "/api/v1/trade/intake-analyze",

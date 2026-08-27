@@ -21,7 +21,8 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    target: "esnext",
+    target: "es2022",
+    modulePreload: { polyfill: false },
     minify: "esbuild",
     cssMinify: true,
     chunkSizeWarningLimit: 1000,

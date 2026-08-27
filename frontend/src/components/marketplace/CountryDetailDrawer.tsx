@@ -1,25 +1,29 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { DestinationCountryInsight } from "@/services/api/aiService";
+import { DestinationCountryInsight, TopCompaniesResult, ProfitEstimateResult } from "@/services/api/aiService";
 import { ISO3_FLAG_MAP } from "./CountryOpportunityCard";
 import { DetailDrawer } from "@/components/common/DetailDrawer";
 import { PrimaryAction } from "@/components/common/PrimaryAction";
-import { 
-  Globe2, 
-  TrendingUp, 
-  ShieldCheck, 
-  AlertTriangle, 
-  CheckCircle2, 
-  DollarSign, 
-  Ship, 
-  Building2, 
-  BarChart3, 
-  Scale, 
-  FileText, 
+import {
+  Globe2,
+  TrendingUp,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
+  DollarSign,
+  Ship,
+  Building2,
+  BarChart3,
+  Scale,
+  FileText,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Coins,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const formatUSD = (value: number) => `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 interface CountryDetailDrawerProps {
   isOpen: boolean;
@@ -27,6 +31,12 @@ interface CountryDetailDrawerProps {
   data: DestinationCountryInsight | null;
   userCommodity?: string;
   userQuantityKg?: number;
+  companies?: TopCompaniesResult | null;
+  companiesLoading?: boolean;
+  companiesError?: string | null;
+  profit?: ProfitEstimateResult | null;
+  profitLoading?: boolean;
+  profitError?: string | null;
 }
 
 export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
@@ -35,13 +45,19 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
   data,
   userCommodity = "Basmati Rice",
   userQuantityKg = 1000,
+  companies = null,
+  companiesLoading = false,
+  companiesError = null,
+  profit = null,
+  profitLoading = false,
+  profitError = null,
 }) => {
   const navigate = useNavigate();
   if (!data) return null;
 
   const { destination, forecast, scores, risk, pros, cons } = data;
   const flag = ISO3_FLAG_MAP[destination.iso3] || "🌐";
-  const finalScore = scores.final_score || 80;
+  const finalScore = scores.final_score;
 
   const annualDemandMT = Math.round(forecast.annual_market_demand_kg / 1000).toLocaleString();
   const fobPrice = forecast.expected_fob_price_usd_per_kg.toFixed(2);
@@ -220,7 +236,7 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
                 ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
                 : "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
             )}>
-              {risk.risk_level || "LOW"} RISK · {scores.risk_penalty || 0} pts Penalty
+              {risk.risk_level} RISK · {scores.risk_penalty} pts Penalty
             </span>
           </div>
 
@@ -249,7 +265,7 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
             <div className="p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)]">
               <span className="text-[10px] text-[var(--text-tertiary)] block uppercase">Net Risk Deductions</span>
               <span className="font-bold text-xs text-sky-600 mt-0.5 block">
-                -{scores.risk_penalty || 0} pts (Final: {scores.final_score.toFixed(1)})
+                -{scores.risk_penalty} pts (Final: {scores.final_score.toFixed(1)})
               </span>
             </div>
           </div>
@@ -267,12 +283,12 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
               <div key={idx} className="space-y-1">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-[var(--text-secondary)]">{item.label}</span>
-                  <span className="text-[var(--text-primary)] font-bold">{(item.val || 0).toFixed(1)} / 100</span>
+                  <span className="text-[var(--text-primary)] font-bold">{item.val.toFixed(1)} / 100</span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-[var(--surface-3)] overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-sky-500 to-emerald-400 rounded-full transition-all"
-                    style={{ width: `${Math.min(100, Math.max(0, item.val || 0))}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, item.val))}%` }}
                   />
                 </div>
               </div>
@@ -280,11 +296,107 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
           </div>
         </div>
 
-<<<<<<< HEAD:frontend/src/components/marketplace/CountryDetailDrawer.tsx
+        {/* ── Real Profit Estimate (sourced freight/tariff cost model) ────── */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+            <Coins className="w-4 h-4 text-emerald-600" />
+            <span>Estimated Profit for This Deal</span>
+          </h4>
+
+          {profitLoading ? (
+            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] font-mono py-4 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+              <span>Computing sourced cost model...</span>
+            </div>
+          ) : profitError ? (
+            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/50 text-xs text-rose-200 font-sans">
+              {profitError}
+            </div>
+          ) : profit ? (
+            <div className="space-y-2.5">
+              <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/20 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-[var(--text-tertiary)] uppercase block">Net Profit</span>
+                  <strong className="text-emerald-600 text-2xl font-mono">{formatUSD(profit.netProfitUSD)}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-[var(--text-tertiary)] uppercase block">Margin</span>
+                  <strong className="text-emerald-600 text-lg font-mono">{profit.netMarginPct}%</strong>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[11px] font-mono">
+                <div className="p-2 rounded-lg bg-[var(--surface-3)] border border-[var(--hairline)]">
+                  <span className="text-[var(--text-tertiary)] block">Revenue</span>
+                  <span className="text-[var(--text-primary)] font-bold">{formatUSD(profit.revenueUSD)}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-[var(--surface-3)] border border-[var(--hairline)]">
+                  <span className="text-[var(--text-tertiary)] block">Ocean Freight</span>
+                  <span className="text-[var(--text-primary)] font-bold">-{formatUSD(profit.costs.oceanFreightUSD)}</span>
+                </div>
+                <div className="p-2 rounded-lg bg-[var(--surface-3)] border border-[var(--hairline)]">
+                  <span className="text-[var(--text-tertiary)] block">Total Costs</span>
+                  <span className="text-[var(--text-primary)] font-bold">-{formatUSD(profit.costs.totalCostsUSD)}</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-[var(--text-tertiary)] font-mono">
+                Sourced freight/GST/duty/insurance cost model — see docs/DATA_METHODOLOGY.md#4-export-profit-calculator for every constant's citation.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--text-tertiary)] font-sans italic">Profit estimate unavailable.</p>
+          )}
+        </div>
+
+        {/* ── Top Companies by Real Text-Similarity + Valuation ────────────── */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 text-sky-600" />
+              <span>Top Companies in {destination.country_name}</span>
+            </h4>
+            {companies && companies.rankingMode === "similarity_and_valuation" && (
+              <span className="text-[10px] font-mono text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 font-bold">
+                TF-IDF + Valuation Ranked
+              </span>
+            )}
+          </div>
+
+          {companiesLoading ? (
+            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] font-mono py-4 justify-center">
+              <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+              <span>Ranking companies by similarity &amp; valuation...</span>
+            </div>
+          ) : companiesError ? (
+            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/50 text-xs text-rose-200 font-sans">
+              {companiesError}
+            </div>
+          ) : companies && companies.companies.length > 0 ? (
+            <ul className="space-y-2">
+              {companies.companies.map((c) => (
+                <li
+                  key={c.companyId}
+                  className="p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold text-[var(--text-primary)] truncate block">{c.displayName}</span>
+                    <span className="text-[10px] text-[var(--text-tertiary)] font-mono">{c.sector || c.industry || "Sector unclassified"}</span>
+                  </div>
+                  {c.combinedScore != null && (
+                    <span className="shrink-0 text-[11px] font-mono font-bold text-sky-600">
+                      {(c.combinedScore * 100).toFixed(0)}% match
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-[var(--text-tertiary)] font-sans italic">
+              No matching companies in the directory dataset yet for this country/product.
+            </p>
+          )}
+        </div>
+
         {/* ── Action Buttons: Simulate Corridor & Find Companies ───────────────── */}
-=======
-        {/* ── Action Button: Simulate Corridor & Generate Report ───────────────── */}
->>>>>>> origin/main:src/components/marketplace/CountryDetailDrawer.tsx
         <div className="pt-2 space-y-2.5">
           <PrimaryAction
             size="lg"
@@ -294,7 +406,6 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
             iconPosition="right"
           >
             Launch Full Corridor Analysis →
-<<<<<<< HEAD:frontend/src/components/marketplace/CountryDetailDrawer.tsx
           </PrimaryAction>
           <PrimaryAction
             variant="outline"
@@ -305,8 +416,6 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
             iconPosition="left"
           >
             View Top Companies to Contact in {destination.country_name}
-=======
->>>>>>> origin/main:src/components/marketplace/CountryDetailDrawer.tsx
           </PrimaryAction>
         </div>
       </div>

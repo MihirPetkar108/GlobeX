@@ -1,5 +1,5 @@
 /**
- * Real escrow service — calls the FastAPI escrow router (src/api/escrow_api.py),
+ * Real escrow service — calls GlobeX Express escrow routes,
  * which persists to public.escrow_accounts / public.blockchain_records and
  * proxies mutating calls through services/chain-adapter to the real
  * TradeEscrow.sol contract on the configured chain (local Hardhat 31337 by
@@ -65,7 +65,7 @@ class BlockchainEscrowService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
+    this.baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
   }
 
   public async computeFileHash(file: File | string): Promise<string> {
@@ -147,7 +147,7 @@ class BlockchainEscrowService {
     return {
       network: "Local Hardhat (31337)",
       tokenAsset: "mUSDC — real 6-decimal ERC-20, real balances",
-      path: "Frontend -> FastAPI /api/v1/escrow/* -> chain-adapter -> TradeEscrow.sol",
+      path: "Frontend -> Express /api/v1/escrow/* -> chain-adapter -> TradeEscrow.sol",
       status: "LIVE",
     };
   }

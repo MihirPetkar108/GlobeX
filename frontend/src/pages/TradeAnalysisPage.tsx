@@ -47,8 +47,8 @@ export const TradeAnalysisPage: React.FC = () => {
   const [reportError, setReportError] = useState<string | null>(null);
 
   // n8n Live Runner State
-  const [n8nUrl, setN8nUrl] = useState("http://localhost:5678/webhook/globex-analyze-trade-v2");
-  const [n8nTestUrl, setN8nTestUrl] = useState("http://localhost:5678/webhook/globex-test-trade-v2");
+  const [n8nUrl, setN8nUrl] = useState((import.meta as any).env?.VITE_N8N_WEBHOOK_URL || "http://localhost:5678/webhook/globex-analyze-trade");
+  const [n8nTestUrl, setN8nTestUrl] = useState((import.meta as any).env?.VITE_N8N_TEST_WEBHOOK_URL || "http://localhost:5678/webhook/globex-test-trade");
   const [n8nMode, setN8nMode] = useState<"production" | "test">("production");
   const [isN8nRunning, setIsN8nRunning] = useState(false);
   const [n8nResult, setN8nResult] = useState<any>(null);
@@ -180,18 +180,11 @@ export const TradeAnalysisPage: React.FC = () => {
       try {
         data = rawText ? JSON.parse(rawText) : null;
       } catch (jsonErr) {
-        data = {
-          status: "RECEIVED",
-          message: rawText || "Workflow triggered and received by n8n engine.",
-          note: "To receive full ML data back in the frontend, import globex_complete_webhook_workflow.json in n8n.",
-        };
+        throw new Error("n8n returned a non-JSON response; the workflow did not return a model result.");
       }
 
       if (!data) {
-        data = {
-          status: "TRIGGERED",
-          message: "Workflow execution initiated successfully in n8n.",
-        };
+        throw new Error("n8n returned an empty response; no model result was produced.");
       }
 
       setN8nResult(data);
@@ -201,7 +194,7 @@ export const TradeAnalysisPage: React.FC = () => {
       notifyN8nWorkflow({
         workflowName: "GlobeX AI Master Trade Intelligence",
         latencyMs: elapsed,
-        summary: `${data.commodity || testProduct} (${testOrigin} ➔ ${testDest}) · Overall Score: ${data.overall_trade_score || 84}/100 [${data.recommendation || "PROCEED"}]`,
+        summary: `${data.commodity || testProduct} (${testOrigin} ➔ ${testDest}) · Overall Score: ${data.overall_trade_score ?? "Unavailable"}/100 [${data.recommendation || "Unknown"}]`,
         modelsTriggered: [
           "XGBoost Anomaly Detector",
           "Moving-Average Forecaster & Opportunity Ranker",
@@ -278,7 +271,7 @@ export const TradeAnalysisPage: React.FC = () => {
               value: analysis?.hsClassification?.confidence
                 ? `${Math.round(analysis.hsClassification.confidence * 100)}%`
                 : "96%",
-              subtext: `HS ${analysis?.hsClassification?.hsCode || "1006.30"}`,
+              subtext: `HS ${analysis?.hsClassification?.hsCode || "Unavailable"}`,
               icon: Award,
               accentColor: "emerald",
             },
@@ -291,7 +284,7 @@ export const TradeAnalysisPage: React.FC = () => {
             },
             {
               label: "Trade Anomaly Risk",
-              value: analysis?.tradeAnomaly?.risk?.risk_level || "LOW",
+              value: analysis?.tradeAnomaly?.risk?.risk_level || "Unavailable",
               subtext:
                 analysis?.tradeAnomaly?.risk?.anomaly_score !== undefined
                   ? `Score ${(analysis.tradeAnomaly.risk.anomaly_score * 100).toFixed(1)}/100`
@@ -301,7 +294,7 @@ export const TradeAnalysisPage: React.FC = () => {
             },
             {
               label: "Collateral Vault",
-              value: `$${(analysis?.totalContractValueUSD || 550000).toLocaleString()}`,
+              value: analysis?.totalContractValueUSD != null ? `$${analysis.totalContractValueUSD.toLocaleString()}` : "Unavailable",
               subtext: "USDC Multi-Sig",
               icon: Coins,
               accentColor: "slate",
@@ -548,22 +541,22 @@ export const TradeAnalysisPage: React.FC = () => {
                       ? rec.scores.final_score
                       : typeof rec.final_score === "number"
                       ? rec.final_score
-                      : 82.5;
+                      : null;
                   const demandKg =
                     typeof rec.forecast?.annual_market_demand_kg === "number"
                       ? rec.forecast.annual_market_demand_kg
                       : typeof rec.forecast_demand_kg === "number"
                       ? rec.forecast_demand_kg
-                      : 5000000;
+                      : null;
                   const fobPrice =
                     typeof rec.forecast?.expected_fob_price_usd_per_kg === "number"
                       ? rec.forecast.expected_fob_price_usd_per_kg
                       : typeof rec.forecast_fob_price === "number"
                       ? rec.forecast_fob_price
-                      : 1.10;
+                      : null;
                   const prosList = rec.pros || rec.why_good || [];
                   const consList = rec.cons || [];
-                  const riskLevel = rec.risk?.risk_level || "LOW";
+                  const riskLevel = rec.risk?.risk_level || "Unavailable";
 
                   return (
                     <div
@@ -582,7 +575,7 @@ export const TradeAnalysisPage: React.FC = () => {
                               ? "bg-rose-950/70 text-rose-400 border-rose-800/40"
                               : "bg-emerald-950/70 text-emerald-400 border-emerald-800/40"
                           )}>
-                            {riskLevel} RISK · ${(fobPrice).toFixed(2)}/kg
+                            {riskLevel} RISK · {fobPrice == null ? "FOB unavailable" : `$${fobPrice.toFixed(2)}/kg`}
                           </span>
                         </div>
                         {prosList.length > 0 && (
@@ -602,10 +595,10 @@ export const TradeAnalysisPage: React.FC = () => {
                       </div>
                       <div className="text-right shrink-0">
                         <div className="text-base font-mono font-bold text-emerald-400">
-                          {finalScore.toFixed(1)} / 100
+                          {finalScore == null ? "Score unavailable" : `${finalScore.toFixed(1)} / 100`}
                         </div>
                         <span className="text-[11px] font-mono text-slate-400">
-                          Forecast: {(demandKg / 1000).toLocaleString()} MT
+                          Forecast: {demandKg == null ? "Unavailable" : `${(demandKg / 1000).toLocaleString()} MT`}
                         </span>
                       </div>
                     </div>
@@ -629,24 +622,24 @@ export const TradeAnalysisPage: React.FC = () => {
                   >
                     {analysis?.tradeAnomaly?.risk?.anomaly_score !== undefined
                       ? analysis.tradeAnomaly.risk.anomaly_score.toFixed(4)
-                      : "0.1800"}
+                      : "Unavailable"}
                   </div>
                   <span className="text-[10px] text-slate-500 font-sans">
-                    Threshold: {analysis?.tradeAnomaly?.metadata?.threshold || 0.5} · {analysis?.tradeAnomaly?.metadata?.label_source || "XGBoost"}
+                    Threshold: {analysis?.tradeAnomaly?.metadata?.threshold ?? "Unavailable"} · {analysis?.tradeAnomaly?.metadata?.label_source || "Unavailable"}
                   </span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#070A0E] border border-white/[0.06] space-y-1">
                   <span className="text-slate-400">Risk Classification</span>
                   <div className="text-base font-bold text-white">
-                    {analysis?.tradeAnomaly?.risk?.risk_level || "LOW"}
+                    {analysis?.tradeAnomaly?.risk?.risk_level || "Unavailable"}
                   </div>
                   <span className="text-[10px] text-slate-500 font-sans">
-                    Pattern: {analysis?.tradeAnomaly?.risk?.anomaly_type || "NORMAL"}
+                    Pattern: {analysis?.tradeAnomaly?.risk?.anomaly_type || "Unavailable"}
                   </span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#070A0E] border border-white/[0.06] space-y-1">
                   <span className="text-slate-400">Corridor History</span>
-                  <div className="text-base font-bold text-emerald-400">48 Months Panel</div>
+                  <div className="text-base font-bold text-emerald-400">{analysis?.tradeAnomaly?.historical ? "Historical panel available" : "Unavailable"}</div>
                   <span className="text-[10px] text-slate-500 font-sans">
                     Flow: {activeDirection} (India {activeDirection === "Export" ? "Outbound" : "Inbound"})
                   </span>
@@ -889,7 +882,7 @@ export const TradeAnalysisPage: React.FC = () => {
                 </div>
 
                 <div className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.04] text-[11px] font-mono text-slate-400 flex items-center justify-between">
-                  <span>Using Docker n8n? Import <code className="text-amber-300">globex_docker_master_workflow.json</code></span>
+                  <span>Using Docker n8n? Import <code className="text-amber-300">globex_everything_real.workflow.json</code></span>
                   <span className="text-slate-500">Targets: <code className="text-slate-300">host.docker.internal:8000</code></span>
                 </div>
 
@@ -971,36 +964,36 @@ export const TradeAnalysisPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       <span className="font-mono text-xs text-white font-bold">
-                        n8n Live Execution Output ({n8nResult.commodity} · {n8nResult.trade_corridor})
+                        n8n Live Execution Output ({n8nResult.commodity || n8nResult.input?.product || testProduct} · {n8nResult.trade_corridor || `${n8nResult.input?.origin_country || testOrigin} → ${n8nResult.input?.destination_country || testDest}`})
                       </span>
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/40 font-bold">
-                      STATUS: {n8nResult.status || "SUCCESS"}
+                      STATUS: {n8nResult.status || "Unknown"}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                     <div className="p-2.5 rounded bg-white/[0.03]">
                       <span className="text-[10px] text-slate-500 block">HS6 Match</span>
-                      <span className="text-white font-bold">{n8nResult.hs_classification?.formatted || "1006.30"}</span>
+                        <span className="text-white font-bold">{n8nResult.hs_classification?.formatted || n8nResult.results?.hs_classification?.hs_code_formatted || "Unavailable"}</span>
                     </div>
                     <div className="p-2.5 rounded bg-white/[0.03]">
                       <span className="text-[10px] text-slate-500 block">Market Score</span>
                       <span className="text-emerald-400 font-bold">
-                        {n8nResult.market_opportunity?.score || n8nResult.market_opportunity_score || "94.2"}/100
+                        {n8nResult.market_opportunity?.score ?? n8nResult.market_opportunity_score ?? n8nResult.results?.market_opportunity?.top_recommendations?.[0]?.scores?.final_score ?? "Unavailable"}/100
                       </span>
                     </div>
                     <div className="p-2.5 rounded bg-white/[0.03]">
                       <span className="text-[10px] text-slate-500 block">Anomaly Score</span>
                       <span className="text-white font-bold">
-                        {n8nResult.trade_anomaly?.score ?? n8nResult.trade_anomaly_score ?? "0.18"} (
-                        {n8nResult.trade_anomaly?.risk_level ?? n8nResult.trade_risk_level ?? "LOW"})
+                        {n8nResult.trade_anomaly?.score ?? n8nResult.trade_anomaly_score ?? n8nResult.results?.anomaly_risk?.risk?.anomaly_score ?? "Unavailable"} (
+                        {n8nResult.trade_anomaly?.risk_level ?? n8nResult.trade_risk_level ?? n8nResult.results?.anomaly_risk?.risk?.risk_level ?? "Unknown"})
                       </span>
                     </div>
                     <div className="p-2.5 rounded bg-white/[0.03]">
                       <span className="text-[10px] text-slate-500 block">Overall Score</span>
                       <span className="text-emerald-400 font-bold text-sm">
-                        {n8nResult.overall_trade_score || "92"} / 100
+                        {n8nResult.overall_trade_score ?? n8nResult.results?.report?.overall_trade_score ?? "Unavailable"} / 100
                       </span>
                     </div>
                   </div>
@@ -1022,7 +1015,7 @@ export const TradeAnalysisPage: React.FC = () => {
           {/* Tab 7: Model Endpoints */}
           {!isLoading && selectedLens === "api" && (
             <div className="space-y-2 text-xs font-mono">
-              <span className="text-slate-400 uppercase text-[10px] block">FastAPI AI Microservice Connectors</span>
+              <span className="text-slate-400 uppercase text-[10px] block">Express Intelligence Connectors</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { path: "/predict/hs-code", desc: "Catalogue-driven HS6 Resolution" },
@@ -1031,8 +1024,15 @@ export const TradeAnalysisPage: React.FC = () => {
                   { path: "/predict/counterparty-match", desc: "Verified Supplier Matching & Trust Scoring" },
                   { path: "/predict/counterparty-risk", desc: "Composite Org Risk Profiling" },
                   { path: "/compliance/rag-analyze", desc: "CEPA Bilateral Tariff & NTM Rules Engine" },
+                  { path: "/compliance/sanctions-screen", desc: "Restricted-Party Screening" },
+                  { path: "/api/v1/rag/query", desc: "Multi-Dataset Trade RAG" },
                   { path: "/api/v1/marketplace/match-buyers", desc: "Institutional RFQ Demand Matching" },
+                  { path: "/api/v1/trade/generate-report", desc: "Multi-Model Executive Trade Dossier" },
                   { path: "/documents/ocr-extract", desc: "Cross-Border Trade Document OCR" },
+                  { path: "/compliance/transaction-gate", desc: "Fail-Closed Transaction Compliance Gate" },
+                  { path: "/compliance/doc-verdict", desc: "Document Verification Verdict" },
+                  { path: "/compliance/trade-synthesis", desc: "Composite Trade Score & Recommendation" },
+                  { path: "/predict/market-opportunity/synthesize-pros-cons", desc: "Local Ollama Country Narrative" },
                   { path: "/health", desc: "Unified System Health & Model Status" },
                 ].map((ep) => (
                   <div key={ep.path} className="p-2.5 rounded-xl bg-[#070A0E] border border-white/[0.06] flex items-center justify-between">

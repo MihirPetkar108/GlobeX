@@ -1,0 +1,39 @@
+{
+  "system_name": "Unsupervised Trade Behaviour Risk & Sequence Ensemble",
+  "version": "1.0.0",
+  "selected_features": [
+    "log_trade_value",
+    "log_net_weight",
+    "log_transaction_count",
+    "trade_growth_mom_calc",
+    "growth_acceleration",
+    "tx_count_growth_mom",
+    "trade_val_hist_ratio",
+    "trade_volatility_6m_clean",
+    "unit_value_usd_per_kg",
+    "unit_val_growth_mom",
+    "unit_val_hist_dev",
+    "unit_val_hist_zscore",
+    "unit_val_volatility_6m_clean",
+    "partner_market_share_latest",
+    "partner_share_change_mom",
+    "partner_share_yoy_growth",
+    "gdp_growth_clean",
+    "inflation_rate_clean",
+    "tariff_rate_clean",
+    "tariff_preference_margin_clean",
+    "sanctions_present",
+    "ofac_entity_count",
+    "scomet_match_flag",
+    "days_since_last_tx",
+    "first_seen_flag",
+    "new_corridor_expansion",
+    "dormant_corridor_reactivation"
+  ],
+  "ensemble_formula": "0.50 * if_score + 0.50 * gru_score",
+  "risk_cutoffs": {
+    "low_risk": "< 70th percentile",
+    "medium_risk": "70th to 90th percentile",
+    "high_risk": ">= 90th percentile"
+  }
+}

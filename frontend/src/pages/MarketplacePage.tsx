@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { Listing } from "@/types/trade";
 import { 
@@ -16,6 +16,10 @@ import ListingDetailDrawer from "@/components/marketplace/ListingDetailDrawer";
 import CreateTradeRequestDrawer from "@/components/marketplace/CreateTradeRequestDrawer";
 import CountryOpportunityCard from "@/components/marketplace/CountryOpportunityCard";
 import CountryDetailDrawer from "@/components/marketplace/CountryDetailDrawer";
+import BuyerMatchingForm from "@/components/marketplace/BuyerMatchingForm";
+import BuyerMatchingResults from "@/components/marketplace/BuyerMatchingResults";
+import { BuyerMatchQuery, BuyerMatchResponse } from "@/services/api/aiService";
+import { TopBuyer } from "@/data/mockTradeData";
 import { CommoditySearchDropdown, CommodityOption } from "@/components/marketplace/CommoditySearchDropdown";
 import { notifyN8nWorkflow } from "@/utils/jingle";
 import { n8nWorkflowService } from "@/services/n8n/workflowService";
@@ -51,6 +55,7 @@ const CATEGORIES = [
 
 export const MarketplacePage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { listings, listingsLoading, listingsError, isExporterView, isImporterView, activeDirection } = useWorkspace();
 
   // ── n8n Live Status Probe ──────────────────────────────────────────────
@@ -123,6 +128,26 @@ export const MarketplacePage: React.FC = () => {
       setMarketResult(null);
     } finally {
       setIsRankLoading(false);
+    }
+  };
+
+  // ── Institutional Buyer Matching State (Exporter: /api/v1/marketplace/match-buyers) ──
+  const [buyerMatchResult, setBuyerMatchResult] = useState<BuyerMatchResponse | null>(null);
+  const [isBuyerMatchLoading, setIsBuyerMatchLoading] = useState<boolean>(false);
+  const [buyerMatchError, setBuyerMatchError] = useState<string | null>(null);
+  const [inspectBuyer, setInspectBuyer] = useState<TopBuyer | null>(null);
+
+  const handleFindBuyers = async (query: BuyerMatchQuery) => {
+    setIsBuyerMatchLoading(true);
+    setBuyerMatchError(null);
+    try {
+      const result = await aiService.matchBuyers(query);
+      setBuyerMatchResult(result);
+    } catch (err: any) {
+      setBuyerMatchError(err?.message || "Buyer matching engine unreachable.");
+      setBuyerMatchResult(null);
+    } finally {
+      setIsBuyerMatchLoading(false);
     }
   };
 
@@ -401,7 +426,68 @@ export const MarketplacePage: React.FC = () => {
             ) : null}
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {/* ── SECTION 1B: INSTITUTIONAL BUYER MATCHING (Exporter only) ─── */}
+      {isExporterView && (
+        <div className="space-y-4">
+          <BuyerMatchingForm onSearch={handleFindBuyers} isLoading={isBuyerMatchLoading} />
+
+          {buyerMatchError && (
+            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+              <span>{buyerMatchError}</span>
+              <button
+                onClick={() => handleFindBuyers({ commodity, quantity: quantityKg, unit: "kg", destinationCountry: "" })}
+                className="px-3 py-1 bg-rose-900/60 hover:bg-rose-800/80 rounded-lg text-rose-200 font-mono font-bold text-xs"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {isBuyerMatchLoading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="h-16 rounded-xl bg-[var(--bg-surface-subtle)] animate-pulse border border-[var(--border-subtle)]" />
+              ))}
+            </div>
+          )}
+
+          {!isBuyerMatchLoading && buyerMatchResult && (
+            <BuyerMatchingResults
+              matchResponse={buyerMatchResult}
+              onInspectBuyer={(buyer: TopBuyer) => setInspectBuyer(buyer)}
+              onCreateTradeRequest={(buyer: TopBuyer) =>
+                navigate(
+                  `/trade-analysis?commodity=${encodeURIComponent(buyerMatchResult.query.commodity)}&dest=${encodeURIComponent(buyer.country)}&qty=${buyerMatchResult.query.quantity}`
+                )
+              }
+            />
+          )}
+
+          {inspectBuyer && (
+            <div className="p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--brand-teal)]/30 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="space-y-1">
+                <h4 className="font-display font-bold text-sm text-[var(--text-primary)]">{inspectBuyer.name}</h4>
+                <p className="text-[var(--text-secondary)]">
+                  {inspectBuyer.city}, {inspectBuyer.country} · Trust {inspectBuyer.trustScore}/100 · {inspectBuyer.activeRFQs} active RFQs
+                </p>
+                {inspectBuyer.contactEmail && (
+                  <p className="text-[var(--text-tertiary)] font-mono">{inspectBuyer.contactPerson} · {inspectBuyer.contactEmail}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setInspectBuyer(null)}
+                className="px-3 py-1 rounded-lg bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-mono text-xs shrink-0"
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isExporterView && (
         /* ── IMPORTER: VERIFIED SUPPLIER SOURCING ─────────────────── */
         <div className="space-y-5 p-6 sm:p-7 rounded-3xl bg-[#080C14] border border-amber-500/20 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
