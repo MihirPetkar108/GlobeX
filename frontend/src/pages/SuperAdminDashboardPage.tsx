@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+
+const API_BASE_URL = getApiBaseUrl();
 
 type VerificationStatus = "Pending" | "Approved" | "Rejected";
 type StatusFilter = "All" | VerificationStatus;
@@ -70,7 +73,7 @@ export default function SuperAdminDashboardPage() {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await fetch("http://localhost:5002/api/organizations/admin/organizations");
+      const response = await fetch(`${API_BASE_URL}/api/organizations/admin/organizations`);
       if (!response.ok) throw new Error("Failed to fetch organizations");
       const data = await response.json();
       const mapped = data.map(mapBackendOrgToFrontend);
@@ -143,7 +146,7 @@ export default function SuperAdminDashboardPage() {
     if (status === 'Rejected') backendStatus = 'REJECTED';
 
     try {
-      const response = await fetch(`http://localhost:5002/api/organizations/admin/organizations/${id}/status`, {
+      const response = await fetch(`${API_BASE_URL}/api/organizations/admin/organizations/${id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: backendStatus })

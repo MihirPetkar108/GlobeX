@@ -40,6 +40,13 @@ export const ListingCard: React.FC<ListingCardProps> = ({
           : "bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--border-default)] opacity-100 filter-none"
       )}
     >
+      {listing.imageUrl && (
+        <img
+          src={listing.imageUrl}
+          alt={listing.title}
+          className="w-full aspect-[16/9] object-cover rounded-xl border border-[var(--border-subtle)]"
+        />
+      )}
       {/* 1. Level A: Product Title & Supplier Info */}
       <div className="space-y-1.5">
         <h3 className="font-display font-bold text-base text-[var(--text-primary)] transition-colors leading-snug line-clamp-2">

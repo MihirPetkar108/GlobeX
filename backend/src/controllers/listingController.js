@@ -20,7 +20,8 @@ const getListingInput = (body = {}) => ({
   certifications: body.certifications,
   lead_time_days: body.lead_time_days ?? body.leadTimeDays,
   minimum_order_quantity: body.minimum_order_quantity ?? body.minimumOrderQuantity,
-  specs: body.specs
+  specs: body.specs,
+  image_url: body.image_url ?? body.imageUrl
 });
 
 const validateListing = (listing, { partial = false } = {}) => {
@@ -64,29 +65,64 @@ const getPagination = (query) => {
   return { page, limit, offset: (page - 1) * limit };
 };
 
-const getAuthenticatedOrganization = async (userId) => {
-  if (useMock) {
-    return {
-      organization_id: null,
-      organization_role: 'ORGANIZATION_ADMIN',
-      organizations: { business_type: 'EXPORTER' }
-    };
-  }
+const PLATFORM_ADMIN_ROLES = new Set(['SUPER_ADMIN', 'ADMIN']);
+
+const resolveAppUser = async (authUserId) => {
+  if (useMock) return { id: authUserId, platform_role: 'ADMIN' };
 
   const { data, error } = await supabaseAdmin
-    .from('organization_members')
-    .select('organization_id, organization_role, organizations(business_type, verification_status)')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single();
+    .from('users')
+    .select('id, platform_role')
+    .eq('auth_id', authUserId)
+    .maybeSingle();
 
   if (error || !data) return null;
   return data;
 };
 
+const getAuthenticatedOrganization = async (authUserId) => {
+  if (useMock) {
+    return {
+      organization_id: null,
+      organization_role: 'ORGANIZATION_ADMIN',
+      organizations: { business_type: 'EXPORTER' },
+      app_user_id: authUserId,
+      platform_role: 'ADMIN'
+    };
+  }
+
+  const appUser = await resolveAppUser(authUserId);
+  if (!appUser) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id, organization_role, organizations(business_type, verification_status)')
+    .eq('user_id', appUser.id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error || !data) {
+    return {
+      organization_id: null,
+      organization_role: null,
+      organizations: null,
+      app_user_id: appUser.id,
+      platform_role: appUser.platform_role
+    };
+  }
+
+  return {
+    ...data,
+    app_user_id: appUser.id,
+    platform_role: appUser.platform_role
+  };
+};
+
 const canManageListings = (member) => {
-  if (!member) return false;
-  return ['ORGANIZATION_ADMIN', 'SALES'].includes(member.organization_role) &&
+  if (!member?.organization_id) return false;
+  if (PLATFORM_ADMIN_ROLES.has(member.platform_role)) return true;
+  if (member.organization_role === 'ORGANIZATION_ADMIN') return true;
+  return member.organization_role === 'SALES' &&
     ['EXPORTER', 'BOTH'].includes(member.organizations?.business_type);
 };
 
@@ -176,13 +212,15 @@ exports.getListingById = async (req, res) => {
 
 exports.createListing = async (req, res) => {
   const listingInput = getListingInput(req.body);
+  if (!listingInput.currency) listingInput.currency = 'USD';
+  if (!listingInput.incoterms) listingInput.incoterms = 'FOB';
   const validationError = validateListing(listingInput);
   if (validationError) return res.status(400).json({ message: validationError });
 
   try {
     const member = await getAuthenticatedOrganization(req.user.id);
     if (!canManageListings(member)) {
-      return res.status(403).json({ message: 'Only active exporter organization members can create listings.' });
+      return res.status(403).json({ message: 'Only organization admins and exporter sales members can create listings.' });
     }
 
     const now = new Date().toISOString();
@@ -192,7 +230,7 @@ exports.createListing = async (req, res) => {
       quantity_available: Number(listingInput.quantity_available),
       price: Number(listingInput.price),
       organization_id: member.organization_id,
-      created_by: req.user.id,
+      created_by: member.app_user_id,
       status: 'ACTIVE',
       created_at: now,
       updated_at: now

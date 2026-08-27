@@ -13,7 +13,7 @@ const AuthLoadingScreen: React.FC = () => (
  * appState (derived from a live Supabase session + the org's
  * onboarding_completed column — see src/hooks/useAuth.ts).
  *
- * NO_SESSION      -> /auth
+ * NO_SESSION      -> /
  * ONBOARDING      -> /onboarding (org missing or onboarding_completed=false)
  * AUTH_LOADING    -> spinner (don't flash-redirect while the session resolves)
  * DASHBOARD       -> render children
@@ -24,7 +24,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
 
   if (appState === "AUTH_LOADING") return <AuthLoadingScreen />;
   if (appState === "NO_SESSION") {
-    return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/" replace state={{ from: location.pathname }} />;
   }
   if (appState === "ONBOARDING") {
     return <Navigate to="/onboarding" replace />;

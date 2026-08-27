@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useScroll, useTransform, useMotionValueEvent, useSpring, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Balancer from "react-wrap-balancer";
@@ -6,6 +6,7 @@ import TradeGlobe, { TradeGlobeRef } from "@/components/TradeGlobe";
 import { SAMPLE_DATA, aggregateByCountry } from "@/lib/tradeData";
 import SplitText from "@/components/ui/split-text";
 import AuthShell from "@/components/auth/AuthShell";
+import { useAuthContext } from "@/context/AuthContext";
 import {
   ChevronDown,
   ShieldCheck,
@@ -19,8 +20,15 @@ export default function LandingPage() {
   const initialPovRef = useRef<{ lat: number; lng: number; altitude: number } | null>(null);
   const phaseRef = useRef<LandingPhase>("idle");
   const navigate = useNavigate();
+  const { appState } = useAuthContext();
   const prefersReducedMotion = useReducedMotion();
   const aggregatedData = useMemo(() => aggregateByCountry(SAMPLE_DATA, null), []);
+
+  useEffect(() => {
+    if (appState === "DASHBOARD") {
+      navigate("/home", { replace: true });
+    }
+  }, [appState, navigate]);
 
   const { scrollYProgress } = useScroll({
     target: containerRef,

@@ -6,6 +6,7 @@
 
 import { TopBuyer, TOP_BUYERS_DATA } from "@/data/mockTradeData";
 import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
 export interface ShippingETASource {
   claim: string;
@@ -401,6 +402,7 @@ export interface ListingCreatePayload {
   leadTimeDays?: number;
   minimumOrderQuantity?: number;
   specs?: Record<string, string>;
+  imageUrl?: string;
 }
 
 export interface ListingCreateResult {
@@ -466,6 +468,7 @@ export interface ListingRecord {
   leadTimeDays: number | null;
   minimumOrderQuantity: number | null;
   specs: Record<string, string>;
+  imageUrl: string | null;
   exporterName: string | null;
   exporterCountry: string | null;
   exporterCity: string | null;
@@ -479,7 +482,7 @@ class AIService {
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
-    this.apiBaseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+    this.apiBaseUrl = getApiBaseUrl();
   }
 
   /**
@@ -847,13 +850,14 @@ class AIService {
         quantity_available: payload.quantityAvailable,
         unit: payload.unit,
         price: payload.price,
-        currency: payload.currency,
-        incoterms: payload.incoterms,
+        currency: payload.currency || "USD",
+        incoterms: payload.incoterms || "FOB",
         origin_port: payload.originPort,
         certifications: payload.certifications,
         lead_time_days: payload.leadTimeDays,
         minimum_order_quantity: payload.minimumOrderQuantity,
         specs: payload.specs,
+        image_url: payload.imageUrl,
       }),
     });
     if (!res.ok) {
@@ -907,6 +911,7 @@ class AIService {
       leadTimeDays: d.lead_time_days,
       minimumOrderQuantity: d.minimum_order_quantity,
       specs: d.specs || {},
+      imageUrl: d.image_url || null,
       exporterName: d.exporter_name || d.organizations?.trade_name || d.organizations?.legal_name,
       exporterCountry: d.exporter_country || d.organizations?.country,
       exporterCity: d.exporter_city || d.organizations?.city,

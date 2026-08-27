@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import type { Session } from "@supabase/supabase-js";
 
 export type BusinessType = "EXPORTER" | "IMPORTER" | "BOTH";
@@ -41,6 +42,35 @@ export interface AuthSnapshot {
   organization: OrgProfile | null;
 }
 
+export interface RegistrationDocumentPayload {
+  fileName: string;
+  mimeType: string;
+  documentType: string;
+  data: string;
+}
+
+export interface OrganizationLoginUser {
+  userId: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  role: string;
+  companyName: string;
+  tradeName?: string | null;
+  businessType?: BusinessType | null;
+  country?: string | null;
+  onboardingStep?: OnboardingStep;
+  onboardingCompleted?: boolean;
+  verificationStatus: OrgProfile["verificationStatus"];
+}
+
+export interface OrganizationLoginResult {
+  session: Session;
+  user: OrganizationLoginUser;
+}
+
+const API_BASE_URL = getApiBaseUrl();
+
 /** Reads the full app-level snapshot for the current Supabase session; null slices when signed out or pre-onboarding. */
 export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSnapshot> {
   if (!session) return { session: null, appUser: null, organization: null };
@@ -63,7 +93,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
 
   const { data: memberRow } = await supabase
     .from("organization_members")
-    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, onboarding_step, onboarding_completed, verification_status)")
+    .select("organization_role, organizations(id, legal_name, trade_name, business_type, country, verification_status)")
     .eq("user_id", userRow.id)
     .eq("is_active", true)
     .maybeSingle();
@@ -72,7 +102,7 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
   if (memberRow?.organizations) {
     const org = memberRow.organizations as unknown as {
       id: string; legal_name: string; trade_name: string | null; business_type: BusinessType | null;
-      country: string | null; onboarding_step: OnboardingStep; onboarding_completed: boolean;
+      country: string | null;
       verification_status: OrgProfile["verificationStatus"];
     };
     organization = {
@@ -82,8 +112,8 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
       businessType: org.business_type,
       country: org.country,
       organizationRole: memberRow.organization_role,
-      onboardingStep: org.onboarding_step,
-      onboardingCompleted: org.onboarding_completed,
+      onboardingStep: "DONE",
+      onboardingCompleted: true,
       verificationStatus: org.verification_status,
     };
   }
@@ -91,43 +121,54 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
   return { session, appUser, organization };
 }
 
-export async function signUp(email: string, password: string, firstName: string, lastName: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw error;
-  if (!data.user) throw new Error("Sign-up did not return a user.");
-
-  const { error: insertErr } = await supabase.from("users").insert({
-    auth_id: data.user.id,
-    email,
-    first_name: firstName,
-    last_name: lastName,
-    account_type: "EXTERNAL",
-    is_active: true,
+export async function signUp(
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+  organizationName: string,
+  document?: RegistrationDocumentPayload | null
+) {
+  const response = await fetch(`${API_BASE_URL}/api/organizations/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      adminName: `${firstName} ${lastName}`.trim(),
+      organizationName,
+      email,
+      password,
+      role: "admin",
+      document: document || null,
+    }),
   });
-  if (insertErr) throw insertErr;
 
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || "Registration failed.");
+
+  // The Express flow creates the organization in PENDING state. Establish a
+  // Supabase session so the existing onboarding route can continue normally.
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error("Registration succeeded, but sign-in could not be started. Try signing in again.");
   return data;
 }
 
-export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+export async function signIn(email: string, password: string): Promise<OrganizationLoginResult> {
+  const response = await fetch(`${API_BASE_URL}/api/organizations/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || "Invalid login credentials.");
+  if (!body.token || !body.refreshToken) throw new Error("Login response did not include a valid session.");
 
-  const snapshot = await fetchAuthSnapshot(data.session);
-  const verificationStatus = snapshot.organization?.verificationStatus;
-  if (verificationStatus !== "VERIFIED") {
-    await supabase.auth.signOut();
-    const message = verificationStatus === "REJECTED"
-      ? "Your organization verification was rejected. Login access is denied."
-      : verificationStatus === "UNDER_REVIEW"
-        ? "Your organization is under review. Login will be available after approval."
-        : verificationStatus === "SUSPENDED"
-          ? "Your organization is suspended. Login access is denied."
-          : "Your organization is awaiting verification. Login will be available after approval.";
-    throw new Error(message);
-  }
-
-  return data;
+  const { data, error } = await supabase.auth.setSession({
+    access_token: body.token,
+    refresh_token: body.refreshToken,
+  });
+  if (error) throw new Error(`Could not establish the login session: ${error.message}`);
+  if (!data.session) throw new Error("Could not establish the login session: Supabase returned no session.");
+  return { session: data.session, user: body.user };
 }
 
 /** Server-side session invalidation (GoTrue revokes the refresh token), not just a local clear. */
