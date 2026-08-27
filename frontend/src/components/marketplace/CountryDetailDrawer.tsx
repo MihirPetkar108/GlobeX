@@ -277,7 +277,9 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
               </div>
               <div className="p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--hairline)]">
                 <span className="text-[10px] text-[var(--text-tertiary)] block uppercase font-mono">Observed pattern</span>
-                <span className="text-xs text-[var(--text-primary)] font-semibold block mt-1">{tradeRisk.risk.anomaly_type.replaceAll("_", " ")}</span>
+                <span className="text-xs text-[var(--text-primary)] font-semibold block mt-1">
+                  {(tradeRisk.risk.anomaly_type || "NORMAL").replaceAll("_", " ")}
+                </span>
                 <span className="text-[10px] text-[var(--text-secondary)] block mt-1">{tradeRisk.metadata?.model_name || "Trade anomaly model"}</span>
               </div>
               {tradeRisk.signals && tradeRisk.signals.length > 0 && (
