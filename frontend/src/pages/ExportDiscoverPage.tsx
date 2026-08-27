@@ -11,6 +11,9 @@ import {
   TopCompaniesResult,
   ProfitEstimateResult,
   HSCodeSearchMatch,
+  TradeAnomalyResult,
+  CounterpartyMatchResult,
+  PartnerGRUSignal,
 } from "@/services/api/aiService";
 import { Search, TrendingUp, Globe2 } from "lucide-react";
 
@@ -43,6 +46,13 @@ export const ExportDiscoverPage: React.FC = () => {
   const [profit, setProfit] = useState<ProfitEstimateResult | null>(null);
   const [profitLoading, setProfitLoading] = useState(false);
   const [profitError, setProfitError] = useState<string | null>(null);
+  const [tradeRisk, setTradeRisk] = useState<TradeAnomalyResult | null>(null);
+  const [tradeRiskLoading, setTradeRiskLoading] = useState(false);
+  const [tradeRiskError, setTradeRiskError] = useState<string | null>(null);
+  const [partnerMatches, setPartnerMatches] = useState<CounterpartyMatchResult[]>([]);
+  const [partnerMatchesLoading, setPartnerMatchesLoading] = useState(false);
+  const [partnerMatchesError, setPartnerMatchesError] = useState<string | null>(null);
+  const [partnerGRUSignal, setPartnerGRUSignal] = useState<PartnerGRUSignal | null>(null);
 
   const runSearch = async (productToQuery?: string, qtyToQuery?: number, strategyToQuery?: string) => {
     const qProduct = productToQuery ?? product;
@@ -93,6 +103,36 @@ export const ExportDiscoverPage: React.FC = () => {
       .then(setProfit)
       .catch((err) => setProfitError(err instanceof Error ? err.message : "Profit estimate failed."))
       .finally(() => setProfitLoading(false));
+
+    const hs6 = data.product?.hs6 ?? result?.product_resolution?.hs6 ?? 100630;
+    setTradeRisk(null);
+    setTradeRiskError(null);
+    setTradeRiskLoading(true);
+    aiService
+      .predictTradeAnomaly(
+        "Export",
+        hs6,
+        data.destination.iso3,
+        Math.max(0, data.forecast.estimated_shipment_revenue_usd),
+        Math.max(1, data.forecast.user_shipment_quantity_kg || quantityKg),
+        "kg"
+      )
+      .then(setTradeRisk)
+      .catch((err) => setTradeRiskError(err instanceof Error ? err.message : "Trade risk model unavailable."))
+      .finally(() => setTradeRiskLoading(false));
+
+    setPartnerMatches([]);
+    setPartnerGRUSignal(null);
+    setPartnerMatchesError(null);
+    setPartnerMatchesLoading(true);
+    aiService
+      .semanticMatchWithEvidence(product, undefined, quantityKg, data.destination.iso3, hs6)
+      .then((evidence) => {
+        setPartnerMatches(evidence.matches);
+        setPartnerGRUSignal(evidence.gruAutoencoder);
+      })
+      .catch((err) => setPartnerMatchesError(err instanceof Error ? err.message : "Partner matching failed."))
+      .finally(() => setPartnerMatchesLoading(false));
   };
 
   const allCountries = result?.top_recommendations || [];
@@ -258,6 +298,13 @@ export const ExportDiscoverPage: React.FC = () => {
         profit={profit}
         profitLoading={profitLoading}
         profitError={profitError}
+        tradeRisk={tradeRisk}
+        tradeRiskLoading={tradeRiskLoading}
+        tradeRiskError={tradeRiskError}
+        partnerMatches={partnerMatches}
+        partnerMatchesLoading={partnerMatchesLoading}
+        partnerMatchesError={partnerMatchesError}
+        partnerGRUSignal={partnerGRUSignal}
       />
     </AppShell>
   );

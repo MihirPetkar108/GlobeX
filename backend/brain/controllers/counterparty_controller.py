@@ -61,7 +61,10 @@ def _load_risk_models():
 def _load_partner_risk_integrator():
     """Load the persisted GRU/IF artifacts used for corridor evidence."""
     try:
-        from brain.partner_discovery.risk_integration import TradeRiskIntegrator
+        # Import the focused artifact module directly. Importing the package
+        # root also initializes the forecasting/training modules, which adds
+        # avoidable startup latency to this request path.
+        import importlib.util
 
         candidates = [
             PROJECT_ROOT / "brain" / "models" / "trade_risk",
@@ -70,6 +73,13 @@ def _load_partner_risk_integrator():
         ]
         for model_dir in candidates:
             if (model_dir / "gru_autoencoder.pt").exists() and (model_dir / "selected_features.json").exists():
+                module_path = PROJECT_ROOT / "brain" / "partner_discovery" / "risk_integration.py"
+                spec = importlib.util.spec_from_file_location("globex_trade_risk_integrator", module_path)
+                if spec is None or spec.loader is None:
+                    continue
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                TradeRiskIntegrator = module.TradeRiskIntegrator
                 integrator = TradeRiskIntegrator(risk_model_dir=str(model_dir))
                 if integrator.gru_autoencoder is not None and integrator.robust_scaler is not None:
                     return integrator
@@ -107,7 +117,7 @@ def _partner_gru_signal(req: "CounterpartyMatchRequest") -> Dict[str, Any]:
         }
     except Exception as exc:
         logger.warning("Partner GRU scoring failed for %s/%s: %s", req.destination_country, req.hs6, exc)
-        return {"status": "unavailable", "reason": "GRU inference failed for the requested corridor."}
+        return {"status": "unavailable", "reason": f"GRU inference failed: {type(exc).__name__}."}
 
 # ---------------------------------------------------------------------------
 # DB availability check (lazy — checked per-request to honour runtime env)

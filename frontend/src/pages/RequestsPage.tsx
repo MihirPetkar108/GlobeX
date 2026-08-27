@@ -20,6 +20,8 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { toast } from "sonner";
+import { tradesService, mapTradeToExportRequest } from "@/services/api/tradesService";
 
 const COUNTRY_INFO: Record<string, { iso2: string; iso3: string }> = {
   "India": { iso2: "in", iso3: "IND" },
@@ -69,7 +71,7 @@ const getProductImage = (title: string, category: string) => {
 type NegotiationStatus = "none" | "proposed" | "countered" | "accepted" | "declined";
 
 export const RequestsPage: React.FC = () => {
-  const { isExporterView, listings, user } = useWorkspace();
+  const { isExporterView, listings, user, addExportRequest } = useWorkspace();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const listingId = searchParams.get("listingId");
@@ -109,6 +111,7 @@ export const RequestsPage: React.FC = () => {
   // Review Modal State & Success Modal State
   const [reviewOpen, setReviewOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   // Derived Financial Calculations
   const unit = selectedListing.unit || "tonne";
@@ -152,9 +155,32 @@ export const RequestsPage: React.FC = () => {
     setNegotiateOpen(false);
   };
 
-  const handleConfirmSendRequest = () => {
-    setReviewOpen(false);
-    setSuccessOpen(true);
+  const handleConfirmSendRequest = async () => {
+    if (!user.organizationId) {
+      toast.error("Complete organization onboarding before sending a trade request.");
+      return;
+    }
+    if (!selectedListing.id) {
+      toast.error("Select a listing from the marketplace first.");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const trade = await tradesService.createTradeRequest({
+        listingId: selectedListing.id,
+        quantity,
+        agreedPrice: unitPrice,
+        currency: "USD",
+      });
+      addExportRequest(mapTradeToExportRequest(trade));
+      setReviewOpen(false);
+      setSuccessOpen(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the trade request.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const productImage = getProductImage(selectedListing.title, selectedListing.category);
@@ -710,11 +736,12 @@ export const RequestsPage: React.FC = () => {
                     radius={12}
                     variant="emerald"
                     onClick={handleConfirmSendRequest}
+                    disabled={isSending}
                     className="px-6 py-2.5 font-bold text-xs font-sans"
                     icon={<ArrowRight className="w-4 h-4" />}
                     iconPosition="right"
                   >
-                    Confirm &amp; Send Trade Request →
+                    {isSending ? "Sending…" : "Confirm & Send Trade Request →"}
                   </SpecularButton>
                 </div>
               </motion.div>

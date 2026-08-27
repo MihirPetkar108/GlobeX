@@ -141,6 +141,22 @@ export interface CounterpartyMatchResult {
   dataSource?: "live" | "fallback";
 }
 
+export interface PartnerGRUSignal {
+  status: "available" | "unavailable";
+  model?: string;
+  model_version?: string;
+  reconstruction_error?: number;
+  isolation_forest_decision?: number | null;
+  sequence_years?: number[];
+  features_used?: string[];
+  reason?: string;
+}
+
+export interface CounterpartyMatchEvidence {
+  matches: CounterpartyMatchResult[];
+  gruAutoencoder: PartnerGRUSignal | null;
+}
+
 export interface TradeRiskAnalysis {
   compositeScore: number;
   riskLevel: "LOW" | "MODERATE" | "ELEVATED" | "CRITICAL";
@@ -730,6 +746,17 @@ class AIService {
     destinationCountry: string = "ARE",
     hs6: number = 100630
   ): Promise<CounterpartyMatchResult[]> {
+    const evidence = await this.semanticMatchWithEvidence(query, targetPrice, quantity, destinationCountry, hs6);
+    return evidence.matches;
+  }
+
+  public async semanticMatchWithEvidence(
+    query: string,
+    targetPrice?: number,
+    quantity?: number,
+    destinationCountry: string = "ARE",
+    hs6: number = 100630
+  ): Promise<CounterpartyMatchEvidence> {
     const res = await fetch(`${this.baseUrl}/predict/counterparty-match`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -745,9 +772,12 @@ class AIService {
     }
     const data = await res.json();
     if (!Array.isArray(data.counterparties) || data.counterparties.length === 0) {
-      return [];
+      return {
+        matches: [],
+        gruAutoencoder: data.partner_matching?.gru_autoencoder ?? null,
+      };
     }
-    return data.counterparties.map((cp: any) => ({
+    const matches = data.counterparties.map((cp: any) => ({
       exporterId: cp.organization_id,
       companyName: cp.name,
       originCountry: cp.country_name || cp.country || destinationCountry,
@@ -770,6 +800,10 @@ class AIService {
       explanation: cp.explanation || `Verified supplier match for ${query}.`,
       dataSource: "live" as const,
     }));
+    return {
+      matches,
+      gruAutoencoder: data.partner_matching?.gru_autoencoder ?? null,
+    };
   }
 
   // 5. Trade Risk Analysis

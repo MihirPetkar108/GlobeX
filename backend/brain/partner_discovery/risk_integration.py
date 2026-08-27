@@ -22,7 +22,11 @@ class GRUAutoencoder(nn.Module):
         _, h = self.encoder(x)
         latent = torch.relu(self.fc_enc(h[-1]))
         dec_init = torch.relu(self.fc_dec(latent)).unsqueeze(0)
-        out, _ = self.decoder(torch.zeros_like(x), dec_init)
+        decoder_input = torch.zeros(
+            x.size(0), x.size(1), self.decoder.input_size,
+            dtype=x.dtype, device=x.device,
+        )
+        out, _ = self.decoder(decoder_input, dec_init)
         recon = self.output_layer(out)
         return recon
 

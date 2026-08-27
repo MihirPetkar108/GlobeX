@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import {
@@ -6,6 +6,7 @@ import {
   ExportTradeStatus,
   ExportNegotiationOffer,
 } from "@/data/exportRequests";
+import { tradesService, mapTradeToExportRequest } from "@/services/api/tradesService";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { DetailDrawer } from "@/components/common/DetailDrawer";
@@ -935,10 +936,44 @@ export const ExportTradesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedListingId = searchParams.get("listingId");
 
-  const { exportRequests, updateExportRequest, exportListings } = useWorkspace();
+  const { listings, updateExportRequest } = useWorkspace();
+  const [exportRequests, setExportRequests] = useState<ExportRequest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<TradeFilter>("NEW REQUEST");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTrade, setSelectedTrade] = useState<ExportRequest | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const trades = await tradesService.listOrgTrades({
+          role: "exporter",
+          listingId: linkedListingId || undefined,
+        });
+        if (!cancelled) setExportRequests(trades.map(mapTradeToExportRequest));
+      } catch (err) {
+        if (!cancelled) {
+          setExportRequests([]);
+          toast.error(err instanceof Error ? err.message : "Could not load export trade requests.");
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedListingId]);
+
+  const handleUpdateRequest = (id: string, changes: Partial<ExportRequest>) => {
+    setExportRequests((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...changes } : item))
+    );
+    updateExportRequest(id, changes);
+  };
 
   const filterTabs: TradeFilter[] = [
     "NEW REQUEST",
@@ -981,7 +1016,7 @@ export const ExportTradesPage: React.FC = () => {
   }, [exportRequests, filter, linkedListingId, searchQuery]);
 
   const activeListing = linkedListingId
-    ? exportListings.find((l) => l.id === linkedListingId)
+    ? listings.find((l) => l.id === linkedListingId)
     : null;
 
   return (
@@ -1019,7 +1054,7 @@ export const ExportTradesPage: React.FC = () => {
                 <Package className="w-4 h-4 text-emerald-700 shrink-0" />
                 <span>
                   Filtering requests for listing:{" "}
-                  <strong className="text-emerald-950 font-bold">{activeListing.productName}</strong>{" "}
+                  <strong className="text-emerald-950 font-bold">{activeListing.title}</strong>{" "}
                   <span className="font-mono text-emerald-800">({activeListing.id})</span>
                 </span>
               </div>
@@ -1084,7 +1119,11 @@ export const ExportTradesPage: React.FC = () => {
 
           {/* Vertical Stacked Cards (One by One) */}
           <div className="space-y-4">
-            {filteredTrades.length > 0 ? (
+            {isLoading ? (
+              <div className="py-20 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-200 border-dashed">
+                Loading trade requests…
+              </div>
+            ) : filteredTrades.length > 0 ? (
               filteredTrades.map((trade) => {
                 const originalTotal = trade.quantity * trade.originalPrice;
                 const buyerTotal = trade.buyerProposedPrice
@@ -1177,7 +1216,7 @@ export const ExportTradesPage: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateExportRequest(trade.id, { status: "REJECTED" });
+                              handleUpdateRequest(trade.id, { status: "REJECTED" });
                               toast.error(`Request ${trade.id} rejected.`);
                             }}
                             title="Reject Request"
@@ -1246,7 +1285,7 @@ export const ExportTradesPage: React.FC = () => {
               exportRequests.find((r) => r.id === selectedTrade.id) || selectedTrade
             }
             onClose={() => setSelectedTrade(null)}
-            onUpdate={updateExportRequest}
+            onUpdate={handleUpdateRequest}
           />
         )}
       </div>

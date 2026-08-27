@@ -1,14 +1,10 @@
-/**
  * Thin client for GlobeX Express trade endpoints.
- * following the same fetch/error conventions as aiService.ts. No fallback: a
- * failed or unreachable call throws, callers decide how to render that.
- *
- * Both DB-backed calls here will 503 with a recognizable `.code` on the
- * thrown Error (`DB_NOT_CONFIGURED` | `DB_UNAVAILABLE`) while
- * SUPABASE_DB_URL/DATABASE_URL is unset on the backend — callers should
- * special-case that into a calm "not connected yet" state rather than a
- * generic error.
+ * Supports authenticated trade requests (POST/GET /api/trades) and REST v1 reads.
  */
+
+import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import type { ExportRequest, ExportTradeStatus } from "@/data/exportRequests";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,6 +35,90 @@ export interface TradeRecord {
   agreed_price: number | null;
   created_at: string;
   updated_at: string;
+  listing?: {
+    product_name?: string;
+    product_category?: string;
+    hs_code?: string;
+    unit?: string;
+    origin_port?: string;
+    price?: number;
+    incoterms?: string;
+    currency?: string;
+  } | null;
+  importer?: { legal_name?: string | null; trade_name?: string | null; country?: string | null } | null;
+  exporter?: { legal_name?: string | null; trade_name?: string | null; country?: string | null } | null;
+}
+
+const TRADE_STATUS_TO_EXPORT: Record<string, ExportTradeStatus> = {
+  CREATED: "NEW REQUEST",
+  OFFERED: "NEW REQUEST",
+  COUNTER_OFFERED: "NEGOTIATING",
+  ACCEPTED: "PAYMENT PENDING",
+  AGREED: "PAYMENT PENDING",
+  IN_PROGRESS: "READY TO SHIP",
+  SHIPPED: "IN TRANSIT",
+  DELIVERED: "DELIVERED",
+  DISPUTED: "DISPUTED",
+  COMPLETED: "SETTLED",
+  REJECTED: "REJECTED",
+  CANCELLED: "REJECTED",
+};
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  UAE: "🇦🇪",
+  "United Arab Emirates": "🇦🇪",
+  India: "🇮🇳",
+  USA: "🇺🇸",
+  "United States": "🇺🇸",
+  Germany: "🇩🇪",
+  Singapore: "🇸🇬",
+};
+
+export function mapTradeToExportRequest(trade: TradeRecord): ExportRequest {
+  const listing = trade.listing || {};
+  const importer = trade.importer || {};
+  const quantity = Number(trade.quantity) || 0;
+  const unitPrice = Number(trade.agreed_price) || Number(listing.price) || 0;
+  const tradeValue = Number(trade.total_amount) || quantity * unitPrice;
+  const country = importer.country || "UAE";
+  const createdAt = trade.created_at || new Date().toISOString();
+
+  return {
+    id: trade.id,
+    listingId: trade.listing_id || "",
+    buyer: importer.trade_name || importer.legal_name || "Buyer organization",
+    country,
+    flag: COUNTRY_FLAGS[country] || "🌍",
+    product: listing.product_name || "Export listing",
+    category: listing.product_category || "Agriculture",
+    hsCode: listing.hs_code || "",
+    quantity,
+    unit: listing.unit || "MT",
+    originalPrice: Number(listing.price) || unitPrice,
+    originalTradeValue: tradeValue,
+    buyerProposedPrice: unitPrice,
+    buyerProposedTradeValue: tradeValue,
+    status: TRADE_STATUS_TO_EXPORT[trade.status] || "NEW REQUEST",
+    negotiationHistory: [
+      {
+        role: "Buyer",
+        price: unitPrice,
+        quantity,
+        time: new Date(createdAt).toLocaleString(),
+        note: "Trade request submitted from Configure & Request Trade.",
+      },
+    ],
+    origin: listing.origin_port || "India",
+    destination: country,
+    destinationPort: "Jebel Ali Port, UAE",
+    transit: "5-7 days",
+    incoterm: listing.incoterms || "FOB",
+    paymentTerms: "To be confirmed",
+    paymentStatus: "Pending",
+    buyerRisk: "Pending review",
+    requiredLicenses: "As required for this corridor",
+    createdAt: createdAt.slice(0, 10),
+  };
 }
 
 export class BackendUnavailableError extends Error {
@@ -55,9 +135,67 @@ export class BackendUnavailableError extends Error {
 
 class TradesService {
   private baseUrl: string;
+  private apiBaseUrl: string;
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+    this.apiBaseUrl = getApiBaseUrl();
+  }
+
+  private async authHeaders(): Promise<Record<string, string>> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("You must be signed in to manage trade requests.");
+    return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+  }
+
+  public async createTradeRequest(payload: {
+    listingId: string;
+    quantity: number;
+    agreedPrice: number;
+    currency?: string;
+    importerId?: string;
+  }): Promise<TradeRecord> {
+    const headers = await this.authHeaders();
+    const body: Record<string, any> = {
+      listing_id: payload.listingId,
+      quantity: payload.quantity,
+      agreed_price: payload.agreedPrice,
+      currency: payload.currency || "USD",
+    };
+    
+    if (payload.importerId) {
+      body.importer_id = payload.importerId;
+    }
+    
+    const res = await fetch(`${this.apiBaseUrl}/api/trades`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || `Trade request failed (${res.status})`);
+    }
+    const data = await res.json();
+    return (data.trade || data) as TradeRecord;
+  }
+
+  public async listOrgTrades(params?: {
+    role?: "exporter" | "importer";
+    listingId?: string;
+  }): Promise<TradeRecord[]> {
+    const headers = await this.authHeaders();
+    const qs = new URLSearchParams();
+    if (params?.role) qs.set("role", params.role);
+    if (params?.listingId) qs.set("listing_id", params.listingId);
+    const res = await fetch(`${this.apiBaseUrl}/api/trades?${qs.toString()}`, { headers });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || `Fetching trade requests failed (${res.status})`);
+    }
+    const data = await res.json();
+    return (data.trades || []) as TradeRecord[];
   }
 
   private async handleErrorResponse(res: Response, context: string): Promise<never> {

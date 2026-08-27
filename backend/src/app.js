@@ -22,6 +22,7 @@ const blockchainRoutes = require('./routes/blockchainRoutes');
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/trades', tradeRoutes);
 app.use(tradeRoutes);
 app.use(intelligenceRoutes);
 app.use(blockchainRoutes);
