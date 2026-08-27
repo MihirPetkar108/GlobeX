@@ -20,7 +20,8 @@ const getListingInput = (body = {}) => ({
   certifications: body.certifications,
   lead_time_days: body.lead_time_days ?? body.leadTimeDays,
   minimum_order_quantity: body.minimum_order_quantity ?? body.minimumOrderQuantity,
-  specs: body.specs
+  specs: body.specs,
+  image_url: body.image_url ?? body.imageUrl
 });
 
 const validateListing = (listing, { partial = false } = {}) => {

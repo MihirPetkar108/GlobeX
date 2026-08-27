@@ -14,7 +14,9 @@ import {
   Calendar,
   Layers,
   Building2,
+  ImagePlus,
 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface CreateListingModalProps {
   isOpen: boolean;
@@ -45,6 +47,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
   const [certifications, setCertifications] = useState("ISO 22000, FSSAI, FDA");
   const [leadTimeDays, setLeadTimeDays] = useState<number>(15);
   const [description, setDescription] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [specs, setSpecs] = useState<Array<{ key: string; value: string }>>([
@@ -63,6 +66,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
     setCertifications("ISO 22000, FSSAI, FDA");
     setLeadTimeDays(15);
     setDescription("");
+    setImageFile(null);
     setSpecs([{ key: "Moisture", value: "Max 12%" }]);
   };
 
@@ -97,6 +101,17 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
 
     setIsSubmitting(true);
     try {
+      let imageUrl: string | undefined;
+      if (imageFile) {
+        const extension = imageFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const imagePath = `${user.organizationId}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("product_images")
+          .upload(imagePath, imageFile, { cacheControl: "3600", upsert: false });
+        if (uploadError) throw new Error(`Image upload failed: ${uploadError.message}`);
+        imageUrl = supabase.storage.from("product_images").getPublicUrl(imagePath).data.publicUrl;
+      }
+
       await aiService.createListing({
         organizationId: user.organizationId,
         productName: title.trim(),
@@ -112,6 +127,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
         leadTimeDays,
         minimumOrderQuantity,
         specs: specRecord,
+        imageUrl,
       });
 
       await refreshListings();
@@ -237,6 +253,32 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
                       placeholder="Quality parameters, processing methods, packaging..."
                       className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs leading-relaxed transition-colors resize-none"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="listing-image" className="text-xs font-medium text-[var(--text-secondary)]">
+                      Product Image
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <ImagePlus className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <input
+                        id="listing-image"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          if (file && file.size > 5 * 1024 * 1024) {
+                            toast.error("Product images must be 5 MB or smaller.");
+                            e.target.value = "";
+                            setImageFile(null);
+                            return;
+                          }
+                          setImageFile(file);
+                        }}
+                        className="w-full text-xs text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-500/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-emerald-700 hover:file:bg-emerald-500/20"
+                      />
+                    </div>
+                    <p className="text-[11px] text-[var(--text-tertiary)]">JPEG, PNG, or WebP, up to 5 MB.</p>
                   </div>
                 </div>
               </div>

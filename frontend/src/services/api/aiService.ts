@@ -401,6 +401,7 @@ export interface ListingCreatePayload {
   leadTimeDays?: number;
   minimumOrderQuantity?: number;
   specs?: Record<string, string>;
+  imageUrl?: string;
 }
 
 export interface ListingCreateResult {
@@ -466,6 +467,7 @@ export interface ListingRecord {
   leadTimeDays: number | null;
   minimumOrderQuantity: number | null;
   specs: Record<string, string>;
+  imageUrl: string | null;
   exporterName: string | null;
   exporterCountry: string | null;
   exporterCity: string | null;
@@ -854,6 +856,7 @@ class AIService {
         lead_time_days: payload.leadTimeDays,
         minimum_order_quantity: payload.minimumOrderQuantity,
         specs: payload.specs,
+        image_url: payload.imageUrl,
       }),
     });
     if (!res.ok) {
@@ -907,6 +910,7 @@ class AIService {
       leadTimeDays: d.lead_time_days,
       minimumOrderQuantity: d.minimum_order_quantity,
       specs: d.specs || {},
+      imageUrl: d.image_url || null,
       exporterName: d.exporter_name || d.organizations?.trade_name || d.organizations?.legal_name,
       exporterCountry: d.exporter_country || d.organizations?.country,
       exporterCity: d.exporter_city || d.organizations?.city,
