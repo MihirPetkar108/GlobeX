@@ -5,6 +5,7 @@
  */
 
 import { TopBuyer, TOP_BUYERS_DATA } from "@/data/mockTradeData";
+import { supabase } from "@/lib/supabaseClient";
 
 export interface ShippingETASource {
   claim: string;
@@ -474,9 +475,11 @@ export interface ListingRecord {
 
 class AIService {
   private baseUrl: string;
+  private apiBaseUrl: string;
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
+    this.apiBaseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
   }
 
   /**
@@ -824,9 +827,16 @@ class AIService {
    * caught error as success (this is what CreateListingPage did before).
    */
   public async createListing(payload: ListingCreatePayload): Promise<ListingCreateResult> {
-    const res = await fetch(`${this.baseUrl}/api/v1/listings`, {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("You must be signed in to create a listing.");
+
+    const res = await fetch(`${this.apiBaseUrl}/api/listings`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         organization_id: payload.organizationId,
         created_by: payload.createdBy,
@@ -851,12 +861,13 @@ class AIService {
       throw new Error(`Listing creation failed (${res.status}): ${body || res.statusText}`);
     }
     const data = await res.json();
+    const listing = data.listing || data;
     return {
-      id: data.id,
-      organizationId: data.organization_id,
-      productName: data.product_name,
-      status: data.status,
-      createdAt: data.created_at,
+      id: listing.id,
+      organizationId: listing.organization_id,
+      productName: listing.product_name,
+      status: listing.status,
+      createdAt: listing.created_at,
     };
   }
 
@@ -871,7 +882,7 @@ class AIService {
     if (params?.category) qs.set("category", params.category);
     if (params?.organizationId) qs.set("organization_id", params.organizationId);
 
-    const res = await fetch(`${this.baseUrl}/api/v1/listings?${qs.toString()}`);
+    const res = await fetch(`${this.apiBaseUrl}/api/listings?${qs.toString()}`);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(`Fetching listings failed (${res.status}): ${body || res.statusText}`);
@@ -1121,13 +1132,14 @@ class AIService {
   public getStatus() {
     return {
       baseUrl: this.baseUrl,
+      listingApiBaseUrl: this.apiBaseUrl,
       engine: "FastAPI + PyTorch + Sentence-Transformers RAG",
       latencyMs: "32ms",
       endpoints: [
         "/api/v1/trade/intake-analyze",
         "/api/v1/trade/generate-report",
         "/api/v1/marketplace/match-buyers",
-        "/api/v1/listings",
+        "/api/listings (Express)",
         "/predict/hs-code",
         "/predict/market-opportunity",
         "/api/trade-anomaly/predict",

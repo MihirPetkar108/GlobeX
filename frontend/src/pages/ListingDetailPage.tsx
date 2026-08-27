@@ -13,10 +13,6 @@ import { EmptyState } from "@/components/common/EmptyState";
 import TrustScoreGauge from "@/components/trust/TrustScoreGauge";
 import TradeRiskCompositeCard from "@/components/risk/TradeRiskCompositeCard";
 import ComplianceChecklistWidget from "@/components/compliance/ComplianceChecklistWidget";
-<<<<<<< HEAD:frontend/src/pages/ListingDetailPage.tsx
-import LogisticsProfitWidget from "@/components/marketplace/LogisticsProfitWidget";
-=======
->>>>>>> origin/main:src/pages/ListingDetailPage.tsx
 import { MapPin, ShieldCheck, Coins } from "lucide-react";
 
 export const ListingDetailPage: React.FC = () => {
@@ -137,15 +133,6 @@ export const ListingDetailPage: React.FC = () => {
         )}
 
         <ComplianceChecklistWidget hsCode={listing.hsCode} productName={listing.title} />
-<<<<<<< HEAD:frontend/src/pages/ListingDetailPage.tsx
-
-        <LogisticsProfitWidget
-          originPortHint={listing.originPort}
-          fobUnitPriceUSD={listing.unitPriceUSD}
-          quantityKg={listing.minimumOrderQuantity}
-        />
-=======
->>>>>>> origin/main:src/pages/ListingDetailPage.tsx
       </div>
     </AppShell>
   );

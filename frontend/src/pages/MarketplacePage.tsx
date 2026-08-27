@@ -174,7 +174,7 @@ export const MarketplacePage: React.FC = () => {
         item.hsCode.includes(q);
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [listings, selectedCategory, searchQuery]);
 
   return (
     <AppShell maxWidth="full" className="space-y-8">
