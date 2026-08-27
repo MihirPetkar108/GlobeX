@@ -18,7 +18,7 @@ export const OnboardingRouteGuard: React.FC<{ children: React.ReactNode }> = ({ 
   const { appState } = useAuthContext();
 
   if (appState === "AUTH_LOADING") return <AuthLoadingScreen />;
-  if (appState === "NO_SESSION") return <Navigate to="/auth" replace />;
+  if (appState === "NO_SESSION") return <Navigate to="/" replace />;
   if (appState === "DASHBOARD") return <Navigate to="/home" replace />;
 
   return <>{children}</>;

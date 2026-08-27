@@ -485,6 +485,7 @@ exports.loginOrganization = async (req, res) => {
     return res.status(200).json({
       message: 'Login successful',
       token: authData.session.access_token,
+      refreshToken: authData.session.refresh_token,
       user: {
         userId: memberData.user_id,
         name: `${memberData.users.first_name} ${memberData.users.last_name}`.trim(),

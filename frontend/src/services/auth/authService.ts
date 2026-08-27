@@ -41,6 +41,15 @@ export interface AuthSnapshot {
   organization: OrgProfile | null;
 }
 
+export interface RegistrationDocumentPayload {
+  fileName: string;
+  mimeType: string;
+  documentType: string;
+  data: string;
+}
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+
 /** Reads the full app-level snapshot for the current Supabase session; null slices when signed out or pre-onboarding. */
 export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSnapshot> {
   if (!session) return { session: null, appUser: null, organization: null };
@@ -91,42 +100,52 @@ export async function fetchAuthSnapshot(session: Session | null): Promise<AuthSn
   return { session, appUser, organization };
 }
 
-export async function signUp(email: string, password: string, firstName: string, lastName: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw error;
-  if (!data.user) throw new Error("Sign-up did not return a user.");
-
-  const { error: insertErr } = await supabase.from("users").insert({
-    auth_id: data.user.id,
-    email,
-    first_name: firstName,
-    last_name: lastName,
-    account_type: "EXTERNAL",
-    is_active: true,
+export async function signUp(
+  email: string,
+  password: string,
+  firstName: string,
+  lastName: string,
+  organizationName: string,
+  document?: RegistrationDocumentPayload | null
+) {
+  const response = await fetch(`${API_BASE_URL}/api/organizations/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      adminName: `${firstName} ${lastName}`.trim(),
+      organizationName,
+      email,
+      password,
+      role: "admin",
+      document: document || null,
+    }),
   });
-  if (insertErr) throw insertErr;
 
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || "Registration failed.");
+
+  // The Express flow creates the organization in PENDING state. Establish a
+  // Supabase session so the existing onboarding route can continue normally.
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error("Registration succeeded, but sign-in could not be started. Try signing in again.");
   return data;
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  const response = await fetch(`${API_BASE_URL}/api/organizations/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || "Invalid login credentials.");
+  if (!body.token || !body.refreshToken) throw new Error("Login response did not include a valid session.");
 
-  const snapshot = await fetchAuthSnapshot(data.session);
-  const verificationStatus = snapshot.organization?.verificationStatus;
-  if (verificationStatus !== "VERIFIED") {
-    await supabase.auth.signOut();
-    const message = verificationStatus === "REJECTED"
-      ? "Your organization verification was rejected. Login access is denied."
-      : verificationStatus === "UNDER_REVIEW"
-        ? "Your organization is under review. Login will be available after approval."
-        : verificationStatus === "SUSPENDED"
-          ? "Your organization is suspended. Login access is denied."
-          : "Your organization is awaiting verification. Login will be available after approval.";
-    throw new Error(message);
-  }
-
+  const { data, error } = await supabase.auth.setSession({
+    access_token: body.token,
+    refresh_token: body.refreshToken,
+  });
+  if (error || !data.session) throw new Error("Could not establish the login session.");
   return data;
 }
 

@@ -8,6 +8,7 @@ import {
   signUp as authSignUp,
   type AppUser,
   type OrgProfile,
+  type RegistrationDocumentPayload,
 } from "@/services/auth/authService";
 
 export type AppState = "NO_SESSION" | "AUTH_LOADING" | "ONBOARDING" | "DASHBOARD";
@@ -18,17 +19,10 @@ export interface UseAuthResult {
   appUser: AppUser | null;
   organization: OrgProfile | null;
   error: string | null;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, organizationName: string, document?: RegistrationDocumentPayload | null) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
-  /**
-   * TEMPORARY — local-only bypass so the rebuilt UI can be clicked through
-   * before Supabase is configured (see reports/production/session_handoff_2026-08-24d
-   * §2: real Supabase setup is deferred to Phase 8). Fakes appUser/organization
-   * without touching the network. Remove once real auth is wired.
-   */
-  enterDemo: (mode: "onboarding" | "home") => void;
 }
 
 /**
@@ -43,7 +37,6 @@ export function useAuth(): UseAuthResult {
   const [organization, setOrganization] = useState<OrgProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [demo, setDemo] = useState<{ appUser: AppUser; organization: OrgProfile | null } | null>(null);
 
   const loadSnapshot = useCallback(async (nextSession: Session | null) => {
     try {
@@ -60,35 +53,10 @@ export function useAuth(): UseAuthResult {
   useEffect(() => {
     let cancelled = false;
 
-    // Safety net: if Supabase takes over 1s or is unconfigured, automatically fall back to demo workspace so user never gets a blank screen!
-    const timer = setTimeout(() => {
-      if (!cancelled) {
-        setInitializing(false);
-        setDemo((currentDemo) => {
-          if (currentDemo) return currentDemo;
-          return {
-            appUser: { id: "demo-user", authId: "demo-auth", email: "demo@globexai.dev", firstName: "Demo", lastName: "User" },
-            organization: {
-              id: "demo-org",
-              legalName: "Demo Exports Pvt Ltd",
-              tradeName: "Demo Exports",
-              businessType: "BOTH",
-              country: "IN",
-              organizationRole: "ORGANIZATION_ADMIN",
-              onboardingStep: "DONE",
-              onboardingCompleted: true,
-              verificationStatus: "VERIFIED",
-            },
-          };
-        });
-      }
-    }, 1000);
-
     supabase.auth.getSession()
       .then(({ data }) => {
         if (cancelled) return;
         if (data && data.session) {
-          clearTimeout(timer);
           loadSnapshot(data.session).finally(() => {
             if (!cancelled) setInitializing(false);
           });
@@ -103,14 +71,12 @@ export function useAuth(): UseAuthResult {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (nextSession) {
-        clearTimeout(timer);
         loadSnapshot(nextSession);
       }
     });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
       sub.subscription.unsubscribe();
     };
   }, [loadSnapshot]);
@@ -120,10 +86,17 @@ export function useAuth(): UseAuthResult {
     await loadSnapshot(data.session);
   }, [loadSnapshot]);
 
-  const signUp = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
+  const signUp = useCallback(async (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    organizationName: string,
+    document?: RegistrationDocumentPayload | null
+  ) => {
     setError(null);
     try {
-      await authSignUp(email, password, firstName, lastName);
+      await authSignUp(email, password, firstName, lastName, organizationName, document);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
@@ -134,8 +107,9 @@ export function useAuth(): UseAuthResult {
   const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
     try {
-      await authSignIn(email, password);
-      await refresh();
+      const authData = await authSignIn(email, password);
+      setSession(authData.session);
+      await loadSnapshot(authData.session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
       throw err;
@@ -144,8 +118,7 @@ export function useAuth(): UseAuthResult {
 
   const signOut = useCallback(async () => {
     setError(null);
-    setDemo(null);
-    if (!session) return; // demo-only session — nothing real to revoke
+    if (!session) return;
     try {
       await authSignOut();
       setSession(null);
@@ -157,32 +130,7 @@ export function useAuth(): UseAuthResult {
     }
   }, [session]);
 
-  const enterDemo = useCallback((mode: "onboarding" | "home") => {
-    setError(null);
-    setDemo({
-      appUser: { id: "demo-user", authId: "demo-auth", email: "demo@globexai.dev", firstName: "Demo", lastName: "User" },
-      organization:
-        mode === "home"
-          ? {
-              id: "demo-org",
-              legalName: "Demo Exports Pvt Ltd",
-              tradeName: "Demo Exports",
-              businessType: "BOTH",
-              country: "IN",
-              organizationRole: "ORGANIZATION_ADMIN",
-              onboardingStep: "DONE",
-              onboardingCompleted: true,
-              verificationStatus: "VERIFIED",
-            }
-          : null,
-    });
-  }, []);
-
-  const appState: AppState = demo
-    ? !demo.organization || !demo.organization.onboardingCompleted
-      ? "ONBOARDING"
-      : "DASHBOARD"
-    : initializing
+  const appState: AppState = initializing
       ? "AUTH_LOADING"
       : !session
         ? "NO_SESSION"
@@ -195,13 +143,12 @@ export function useAuth(): UseAuthResult {
   return {
     appState,
     session,
-    appUser: demo ? demo.appUser : appUser,
-    organization: demo ? demo.organization : organization,
+    appUser,
+    organization,
     error,
     signUp,
     signIn,
     signOut,
     refresh,
-    enterDemo,
   };
 }
