@@ -14,12 +14,14 @@ app.use(express.json({ limit: '15mb' }));
 // Routes
 const expenseRoutes = require('./routes/expenseRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
+const listingRoutes = require('./routes/listingRoutes');
 const tradeRoutes = require('./routes/tradeRoutes');
 const intelligenceRoutes = require('./routes/intelligenceRoutes');
 const blockchainRoutes = require('./routes/blockchainRoutes');
 
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/listings', listingRoutes);
 app.use(tradeRoutes);
 app.use(intelligenceRoutes);
 app.use(blockchainRoutes);

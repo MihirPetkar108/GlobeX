@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthContext } from "@/context/AuthContext";
 import SpecularButton from "@/components/ui/SpecularButton";
-import { Globe2, Building2, Mail, Lock, Eye, EyeOff, User, ShieldCheck, AlertCircle, FlaskConical } from "lucide-react";
+import { Globe2, Building2, Mail, Lock, Eye, EyeOff, User, ShieldCheck, AlertCircle, FileText, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface AuthAccordionProps {
@@ -18,7 +18,7 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
   initialMode = "signin",
 }) => {
   const navigate = useNavigate();
-  const { signIn, signUp, enterDemo } = useAuthContext();
+  const { signIn, signUp } = useAuthContext();
 
   const [activeTab, setActiveTab] = useState<"signin" | "register">(initialMode);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -26,8 +26,35 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState<string>("");
+  const [organizationName, setOrganizationName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [registrationFile, setRegistrationFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read selected document."));
+    reader.readAsDataURL(file);
+  });
+
+  const handleRegistrationFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+    if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setFormError("Upload a PDF, JPEG, PNG, or WebP document.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setFormError("Document must be 10 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+    setFormError(null);
+    setRegistrationFile(file);
+  };
 
   const splitName = (name: string): [string, string] => {
     const parts = name.trim().split(/\s+/);
@@ -55,7 +82,18 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
     setIsSubmitting(true);
     try {
       const [firstName, lastName] = splitName(fullName);
-      await signUp(email, password, firstName, lastName);
+      if (!organizationName.trim()) {
+        throw new Error("Organization name is required.");
+      }
+      const document = registrationFile
+        ? {
+            fileName: registrationFile.name,
+            mimeType: registrationFile.type,
+            documentType: "COMPANY_REGISTRATION",
+            data: await readFileAsDataUrl(registrationFile),
+          }
+        : null;
+      await signUp(email, password, firstName, lastName, organizationName.trim(), document);
       // Onboarding hasn't run yet for a brand-new account — always land on
       // /onboarding, never /dashboard, regardless of onSuccess.
       navigate("/onboarding");
@@ -64,11 +102,6 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleDemo = (mode: "onboarding" | "home") => {
-    enterDemo(mode);
-    navigate(mode === "home" ? "/home" : "/onboarding");
   };
 
   return (
@@ -123,7 +156,7 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display font-bold text-base text-[var(--text-primary)]">
-                    Sign in to GlobeXAI
+                    Sign in to Globex
                   </h3>
                   <span className="text-[10px] font-mono text-[var(--brand-teal)] px-2 py-0.5 rounded bg-[var(--success-bg)] border border-[var(--brand-teal)]/30 font-semibold">
                     TLS-256
@@ -202,6 +235,15 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
                   </SpecularButton>
                 </div>
               </form>
+
+              <button
+                type="button"
+                onClick={() => navigate("/super-admin/login")}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2.5 text-[11px] font-mono font-semibold text-[var(--text-secondary)] hover:border-red-500/40 hover:text-red-500 transition-colors cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Super Admin Login
+              </button>
             </motion.div>
           ) : (
             <motion.div
@@ -227,6 +269,20 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
               </div>
 
               <form onSubmit={handleRegisterSubmit} className="space-y-3 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[var(--text-secondary)] text-[11px] flex items-center gap-1.5 font-medium">
+                    <Building2 className="w-3 h-3 text-[var(--text-tertiary)]" />
+                    <span>Organization Name</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={organizationName}
+                    onChange={(e) => setOrganizationName(e.target.value)}
+                    placeholder="Your organization name"
+                    className="w-full px-3 py-2 rounded-xl bg-[var(--bg-surface-subtle)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs outline-none focus:border-[var(--brand-cyan)]"
+                  />
+                </div>
                 <div className="space-y-1">
                   <label className="text-[var(--text-secondary)] text-[11px] flex items-center gap-1.5 font-medium">
                     <User className="w-3 h-3 text-[var(--text-tertiary)]" />
@@ -273,6 +329,47 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
                   />
                 </div>
 
+                <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-subtle)] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                      <FileText className="w-3 h-3 text-[var(--brand-cyan)]" />
+                      Registration Document
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp"
+                      onChange={handleRegistrationFileChange}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-[10px] font-mono font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-cyan)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-3 h-3" />
+                      Upload
+                    </button>
+                  </div>
+                  {registrationFile && (
+                    <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--text-tertiary)]">
+                      <span className="truncate">{registrationFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegistrationFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }}
+                        className="p-1 text-[var(--text-tertiary)] hover:text-[var(--status-blocked)] cursor-pointer"
+                        aria-label="Remove registration document"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-[var(--text-tertiary)]">PDF, JPEG, PNG, or WebP up to 10 MB.</p>
+                </div>
+
                 {formError && (
                   <div className="flex items-start gap-2 text-[11px] text-[var(--status-blocked)] bg-[var(--status-blocked-bg)] rounded-lg px-2.5 py-2">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -297,30 +394,6 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
           )}
         </AnimatePresence>
 
-        {/* TEMPORARY — Supabase isn't configured yet (deferred to Phase 8).
-            Lets the rebuilt UI be clicked through locally, no network calls. */}
-        <div className="mt-5 pt-4 border-t border-dashed border-[var(--border-subtle)] space-y-2">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
-            <FlaskConical className="w-3 h-3" />
-            <span>Preview only — Supabase not configured yet</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleDemo("onboarding")}
-              className="py-2 px-3 rounded-xl text-[11px] font-mono font-medium text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-[var(--brand-cyan)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-            >
-              View onboarding
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemo("home")}
-              className="py-2 px-3 rounded-xl text-[11px] font-mono font-medium text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:border-[var(--brand-teal)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-            >
-              View workspace
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

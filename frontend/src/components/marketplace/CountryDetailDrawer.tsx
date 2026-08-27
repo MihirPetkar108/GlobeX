@@ -296,6 +296,7 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
           </div>
         </div>
 
+<<<<<<< HEAD
         {/* ── Real Profit Estimate (sourced freight/tariff cost model) ────── */}
         <div className="space-y-3">
           <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
@@ -396,7 +397,7 @@ export const CountryDetailDrawer: React.FC<CountryDetailDrawerProps> = ({
           )}
         </div>
 
-        {/* ── Action Buttons: Simulate Corridor & Find Companies ───────────────── */}
+        {/* ── Action Button: Simulate Corridor & Generate Report ───────────────── */}
         <div className="pt-2 space-y-2.5">
           <PrimaryAction
             size="lg"

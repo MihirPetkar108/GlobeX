@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { Listing } from "@/types/trade";
-import { DEMO_LISTINGS } from "@/data/mockTradeData";
 import { aiService } from "@/services/api/aiService";
 import { AppShell } from "@/components/layout/AppShell";
 import ListingDetailDrawer from "@/components/marketplace/ListingDetailDrawer";
@@ -163,18 +162,18 @@ const TraderCard = ({
           </button>
 
           {/* Check / Select Button (Lighter green by default, solid GREEN when active, click again to unselect) */}
-          <button 
+          <button
             type="button"
-            onClick={(e) => { 
-              e.stopPropagation(); 
+            onClick={(e) => {
+              e.stopPropagation();
               const nextState = !isSelected;
               setIsSelected(nextState);
               if (nextState) {
                 toast.success(`Selected ${listing.exporterName} for Trade`, { icon: "✅" });
-                onRequest(listing);
               } else {
                 toast.info(`Unselected ${listing.exporterName}`);
               }
+              onInspect(listing);
             }}
             className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center border transition-all shadow-2xs cursor-pointer",
@@ -225,12 +224,9 @@ export const DiscoverPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { listings } = useWorkspace();
 
-  // Fallback to DEMO_LISTINGS if API listings are empty
-  const activeListings = useMemo(() => {
-    return listings && listings.length > 0 ? listings : DEMO_LISTINGS;
-  }, [listings]);
+  const activeListings = listings;
 
-  // Filters State (default to empty string so all demo cards are visible immediately)
+  // Filters State
   const [filterProduct, setFilterProduct] = useState("");
   const [filterQty, setFilterQty] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
@@ -260,7 +256,7 @@ export const DiscoverPage: React.FC = () => {
     aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
   }, []);
 
-  // Derived filtered items (reactive so selecting All Products or changing filters instantly displays the demo cards)
+  // Derived filtered items
   const filteredListings = useMemo(() => {
     return activeListings.filter((l) => {
       const q = filterProduct.toLowerCase().trim();

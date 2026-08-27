@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { aiService } from "@/services/api/aiService";
 import { Listing } from "@/types/trade";
@@ -12,8 +12,8 @@ import {
   Anchor,
   ShieldCheck,
   Calendar,
-  Layers,
   Building2,
+  ImagePlus,
 } from "lucide-react";
 
 interface CreateListingModalProps {
@@ -47,9 +47,8 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [specs, setSpecs] = useState<Array<{ key: string; value: string }>>([
-    { key: "Moisture", value: "Max 12%" },
-  ]);
+  const [imageFiles, setImageFiles] = useState<Array<{ file: File; url: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setTitle("");
@@ -63,18 +62,19 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
     setCertifications("ISO 22000, FSSAI, FDA");
     setLeadTimeDays(15);
     setDescription("");
-    setSpecs([{ key: "Moisture", value: "Max 12%" }]);
+    setImageFiles([]);
   };
 
-  const handleAddSpecRow = () => setSpecs((prev) => [...prev, { key: "", value: "" }]);
-  const handleSpecChange = (index: number, field: "key" | "value", val: string) => {
-    setSpecs((prev) => {
-      const updated = [...prev];
-      updated[index][field] = val;
-      return updated;
-    });
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setImageFiles((prev) => [...prev, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+    e.target.value = "";
   };
-  const handleRemoveSpecRow = (index: number) => setSpecs((prev) => prev.filter((_, i) => i !== index));
+
+  const handleRemoveImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,13 +87,6 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
       toast.error("No organization on this account yet — complete onboarding first.");
       return;
     }
-
-    const specRecord: Record<string, string> = {};
-    specs.forEach((s) => {
-      if (s.key.trim() && s.value.trim()) {
-        specRecord[s.key.trim()] = s.value.trim();
-      }
-    });
 
     setIsSubmitting(true);
     try {
@@ -111,7 +104,6 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
         certifications: certifications.split(",").map((c) => c.trim()).filter(Boolean),
         leadTimeDays,
         minimumOrderQuantity,
-        specs: specRecord,
       });
 
       await refreshListings();
@@ -171,19 +163,19 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
             </span>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="p-5 rounded-2xl bg-[var(--surface-1)] border border-[var(--hairline)] space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            <div className="lg:col-span-2 flex flex-col">
+              <div className="p-6 rounded-2xl bg-[var(--surface-1)] border border-[var(--hairline)] space-y-5 flex-1 flex flex-col">
                 <div className="flex items-center gap-2 border-b border-[var(--hairline)] pb-3">
-                  <FileText className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-sm font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                  <FileText className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-base font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
                     Product Overview
                   </h3>
                 </div>
 
-                <div className="space-y-3.5">
+                <div className="space-y-4 flex-1 flex flex-col">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[var(--text-secondary)]">
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">
                       Product Title <span className="text-rose-600">*</span>
                     </label>
                     <input
@@ -192,17 +184,17 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="e.g. 1121 Steam Extra Long Grain Aged Basmati Rice"
-                      className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs transition-colors"
+                      className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-sm transition-colors"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-[var(--text-secondary)]">Category</label>
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">Category</label>
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value as Listing["category"])}
-                        className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs transition-colors cursor-pointer"
+                        className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-sm transition-colors cursor-pointer"
                       >
                         <option value="Agriculture">Agriculture</option>
                         <option value="Spices">Spices</option>
@@ -214,7 +206,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-[var(--text-secondary)]">
+                      <label className="text-sm font-medium text-[var(--text-secondary)]">
                         HS Code <span className="text-rose-600">*</span>
                       </label>
                       <input
@@ -223,74 +215,63 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
                         value={hsCode}
                         onChange={(e) => setHsCode(e.target.value)}
                         placeholder="e.g. 1006.30.20"
-                        className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs font-mono transition-colors"
+                        className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-sm font-mono transition-colors"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[var(--text-secondary)]">Product Description</label>
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">Product Description</label>
                     <textarea
                       rows={3}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Quality parameters, processing methods, packaging..."
-                      className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs leading-relaxed transition-colors resize-none"
+                      className="w-full p-3 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-sm leading-relaxed transition-colors resize-none"
                     />
                   </div>
-                </div>
-              </div>
 
-              <div className="p-5 rounded-2xl bg-[var(--surface-1)] border border-[var(--hairline)] space-y-4">
-                <div className="flex items-center justify-between border-b border-[var(--hairline)] pb-3">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-600" />
-                    <h3 className="text-sm font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
-                      Specifications
-                    </h3>
+                  {/* Product Images — fills the space freed up by removing the old Specifications card */}
+                  <div className="space-y-1.5 flex-1 flex flex-col">
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">Product Images</label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 min-h-[120px] w-full rounded-xl border-2 border-dashed border-[var(--hairline-strong)] bg-[var(--surface-2)] hover:bg-emerald-500/5 hover:border-emerald-500/50 transition-colors flex flex-col items-center justify-center gap-2 text-center cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                        <ImagePlus className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <span className="text-sm font-medium text-[var(--text-primary)]">Click to upload product images</span>
+                      <span className="text-xs text-[var(--text-tertiary)]">PNG or JPG, up to 5MB each</span>
+                    </button>
+
+                    {imageFiles.length > 0 && (
+                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 pt-1">
+                        {imageFiles.map((img, idx) => (
+                          <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-[var(--hairline)]">
+                            <img src={img.url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              aria-label="Remove image"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddSpecRow}
-                    className="text-xs text-emerald-600 hover:text-emerald-500 font-medium transition-colors cursor-pointer"
-                  >
-                    + Add Parameter
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {specs.map((spec, idx) => (
-                    <div key={idx} className="grid grid-cols-7 gap-3 items-center">
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          value={spec.key}
-                          onChange={(e) => handleSpecChange(idx, "key", e.target.value)}
-                          placeholder="e.g. Moisture"
-                          className="w-full p-2.5 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs transition-colors font-mono"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <input
-                          type="text"
-                          value={spec.value}
-                          onChange={(e) => handleSpecChange(idx, "value", e.target.value)}
-                          placeholder="e.g. Max 12%"
-                          className="w-full p-2.5 rounded-xl bg-[var(--surface-1)] border border-[var(--hairline)] text-[var(--text-primary)] outline-none focus:border-emerald-500/50 text-xs transition-colors font-mono"
-                        />
-                      </div>
-                      <div className="col-span-1 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSpecRow(idx)}
-                          className="text-xs text-rose-600 hover:text-rose-400 transition-colors p-1 cursor-pointer"
-                          title="Remove row"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
@@ -406,20 +387,22 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({ isOpen, 
                   </div>
                 </div>
               </div>
-
-              <SpecularButton
-                type="submit"
-                size="md"
-                radius={12}
-                variant="emerald"
-                className="w-full justify-center py-3"
-                icon={<PlusCircle className="w-4.5 h-4.5" />}
-                iconPosition="left"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Publishing..." : "Publish Listing"}
-              </SpecularButton>
             </div>
+          </div>
+
+          <div className="flex justify-center pt-2">
+            <SpecularButton
+              type="submit"
+              size="md"
+              radius={12}
+              variant="emerald"
+              className="px-12 py-3 justify-center"
+              icon={<PlusCircle className="w-4.5 h-4.5" />}
+              iconPosition="left"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Publishing..." : "Publish Listing"}
+            </SpecularButton>
           </div>
         </form>
       </div>

@@ -5,6 +5,8 @@
  */
 
 import { TopBuyer, TOP_BUYERS_DATA } from "@/data/mockTradeData";
+import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
 export interface ShippingETASource {
   claim: string;
@@ -418,6 +420,7 @@ export interface ListingCreatePayload {
   leadTimeDays?: number;
   minimumOrderQuantity?: number;
   specs?: Record<string, string>;
+  imageUrl?: string;
 }
 
 export interface ListingCreateResult {
@@ -483,6 +486,7 @@ export interface ListingRecord {
   leadTimeDays: number | null;
   minimumOrderQuantity: number | null;
   specs: Record<string, string>;
+  imageUrl: string | null;
   exporterName: string | null;
   exporterCountry: string | null;
   exporterCity: string | null;
@@ -492,9 +496,11 @@ export interface ListingRecord {
 
 class AIService {
   private baseUrl: string;
+  private apiBaseUrl: string;
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+    this.apiBaseUrl = getApiBaseUrl();
   }
 
   /**
@@ -916,9 +922,16 @@ class AIService {
    * caught error as success (this is what CreateListingPage did before).
    */
   public async createListing(payload: ListingCreatePayload): Promise<ListingCreateResult> {
-    const res = await fetch(`${this.baseUrl}/api/v1/listings`, {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("You must be signed in to create a listing.");
+
+    const res = await fetch(`${this.apiBaseUrl}/api/listings`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         organization_id: payload.organizationId,
         created_by: payload.createdBy,
@@ -929,13 +942,14 @@ class AIService {
         quantity_available: payload.quantityAvailable,
         unit: payload.unit,
         price: payload.price,
-        currency: payload.currency,
-        incoterms: payload.incoterms,
+        currency: payload.currency || "USD",
+        incoterms: payload.incoterms || "FOB",
         origin_port: payload.originPort,
         certifications: payload.certifications,
         lead_time_days: payload.leadTimeDays,
         minimum_order_quantity: payload.minimumOrderQuantity,
         specs: payload.specs,
+        image_url: payload.imageUrl,
       }),
     });
     if (!res.ok) {
@@ -943,12 +957,13 @@ class AIService {
       throw new Error(`Listing creation failed (${res.status}): ${body || res.statusText}`);
     }
     const data = await res.json();
+    const listing = data.listing || data;
     return {
-      id: data.id,
-      organizationId: data.organization_id,
-      productName: data.product_name,
-      status: data.status,
-      createdAt: data.created_at,
+      id: listing.id,
+      organizationId: listing.organization_id,
+      productName: listing.product_name,
+      status: listing.status,
+      createdAt: listing.created_at,
     };
   }
 
@@ -963,7 +978,7 @@ class AIService {
     if (params?.category) qs.set("category", params.category);
     if (params?.organizationId) qs.set("organization_id", params.organizationId);
 
-    const res = await fetch(`${this.baseUrl}/api/v1/listings?${qs.toString()}`);
+    const res = await fetch(`${this.apiBaseUrl}/api/listings?${qs.toString()}`);
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(`Fetching listings failed (${res.status}): ${body || res.statusText}`);
@@ -988,9 +1003,10 @@ class AIService {
       leadTimeDays: d.lead_time_days,
       minimumOrderQuantity: d.minimum_order_quantity,
       specs: d.specs || {},
-      exporterName: d.exporter_name,
-      exporterCountry: d.exporter_country,
-      exporterCity: d.exporter_city,
+      imageUrl: d.image_url || null,
+      exporterName: d.exporter_name || d.organizations?.trade_name || d.organizations?.legal_name,
+      exporterCountry: d.exporter_country || d.organizations?.country,
+      exporterCity: d.exporter_city || d.organizations?.city,
       createdAt: d.created_at,
       updatedAt: d.updated_at,
     }));
@@ -1233,13 +1249,14 @@ class AIService {
   public getStatus() {
     return {
       baseUrl: this.baseUrl,
+      listingApiBaseUrl: this.apiBaseUrl,
       engine: "Express gateway + backend/brain ML services",
       latencyMs: "32ms",
       endpoints: [
         "/api/v1/trade/intake-analyze",
         "/api/v1/trade/generate-report",
         "/api/v1/marketplace/match-buyers",
-        "/api/v1/listings",
+        "/api/listings (Express)",
         "/predict/hs-code",
         "/predict/market-opportunity",
         "/api/trade-anomaly/predict",

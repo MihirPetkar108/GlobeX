@@ -83,6 +83,135 @@ class TradeRiskIntegrator:
             # Fallback gracefully to rule-based risk penalties
             pass
 
+    def score_corridor(
+        self,
+        panel: pd.DataFrame,
+        partner_iso3: str,
+        hs6: int,
+        sequence_length: int = 5,
+    ) -> Optional[Dict[str, Any]]:
+        """Run the persisted GRU autoencoder on observed corridor history.
+
+        The partner endpoint uses this as an evidence signal only. It does not
+        rescale the reconstruction error into a match score or risk percentage.
+        That keeps country matching and temporal anomaly detection as separate,
+        auditable outputs.
+        """
+        if self.gru_autoencoder is None or self.robust_scaler is None or not self.selected_features:
+            return None
+
+        required = {
+            "year", "importer_iso3", "hs6", "trade_value_usd",
+            "export_net_weight_kg", "transaction_count",
+            "fob_unit_value_usd_per_kg", "destination_market_share_pct",
+            "destination_gdp_growth", "destination_inflation",
+            "destination_applied_tariff_rate", "tariff_preference_margin",
+            "sanctions_present", "ofac_entity_count", "scomet_match_flag",
+        }
+        if not required.issubset(panel.columns):
+            return None
+
+        corridor = panel[
+            (panel["importer_iso3"].astype(str).str.upper() == str(partner_iso3).upper())
+            & (panel["hs6"].astype(int) == int(hs6))
+        ].copy()
+        if corridor.empty:
+            return None
+
+        # The panel can contain multiple source rows per year. Aggregate only
+        # observed values before deriving the temporal features.
+        sum_columns = [
+            "trade_value_usd", "export_net_weight_kg", "transaction_count",
+            "sanctions_present", "ofac_entity_count", "scomet_match_flag",
+        ]
+        mean_columns = [
+            "destination_market_share_pct", "destination_gdp_growth",
+            "destination_inflation", "destination_applied_tariff_rate",
+            "tariff_preference_margin",
+        ]
+        available_sum = [column for column in sum_columns if column in corridor.columns]
+        available_mean = [column for column in mean_columns if column in corridor.columns]
+        yearly = corridor.groupby("year", as_index=False)[available_sum].sum()
+        means = corridor.groupby("year", as_index=False)[available_mean].mean()
+        yearly = yearly.merge(means, on="year", how="left").sort_values("year").reset_index(drop=True)
+        if len(yearly) < sequence_length:
+            return None
+
+        eps = 1e-9
+        trade_value = yearly["trade_value_usd"].fillna(0.0).clip(lower=0.0)
+        net_weight = yearly["export_net_weight_kg"].fillna(0.0).clip(lower=0.0)
+        tx_count = yearly["transaction_count"].fillna(0.0).clip(lower=0.0)
+        unit_value = np.divide(
+            trade_value.to_numpy(dtype=float),
+            np.maximum(net_weight.to_numpy(dtype=float), eps),
+        )
+        growth = trade_value.pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        tx_growth = tx_count.pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        unit_series = pd.Series(unit_value, index=yearly.index)
+        historical_trade_median = trade_value.shift(1).rolling(6, min_periods=1).median()
+        historical_unit_median = unit_series.shift(1).rolling(6, min_periods=1).median()
+        historical_unit_mean = unit_series.shift(1).rolling(6, min_periods=1).mean()
+        historical_unit_std = unit_series.shift(1).rolling(6, min_periods=2).std()
+        trade_std = trade_value.shift(1).rolling(6, min_periods=2).std()
+        unit_std = unit_series.shift(1).rolling(6, min_periods=2).std()
+
+        features = pd.DataFrame(index=yearly.index)
+        features["log_trade_value"] = np.log1p(trade_value)
+        features["log_net_weight"] = np.log1p(net_weight)
+        features["log_transaction_count"] = np.log1p(tx_count)
+        features["trade_growth_mom_calc"] = growth.clip(-10.0, 10.0)
+        features["growth_acceleration"] = growth.diff().fillna(0.0).clip(-10.0, 10.0)
+        features["tx_count_growth_mom"] = tx_growth.clip(-10.0, 10.0)
+        features["trade_val_hist_ratio"] = (trade_value / (historical_trade_median + eps)).replace([np.inf, -np.inf], 0.0).fillna(1.0)
+        features["trade_volatility_6m_clean"] = trade_std.fillna(0.0)
+        features["unit_value_usd_per_kg"] = unit_series
+        features["unit_val_growth_mom"] = unit_series.pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0).clip(-10.0, 10.0)
+        features["unit_val_hist_dev"] = (unit_series - historical_unit_median).fillna(0.0)
+        features["unit_val_hist_zscore"] = ((unit_series - historical_unit_mean) / (historical_unit_std + eps)).replace([np.inf, -np.inf], np.nan).fillna(0.0).clip(-10.0, 10.0)
+        features["unit_val_volatility_6m_clean"] = unit_std.fillna(0.0)
+        features["partner_market_share_latest"] = yearly["destination_market_share_pct"].fillna(0.0)
+        features["partner_share_change_mom"] = features["partner_market_share_latest"].diff().fillna(0.0)
+        features["partner_share_yoy_growth"] = features["partner_market_share_latest"].pct_change().replace([np.inf, -np.inf], np.nan).fillna(0.0).clip(-10.0, 10.0)
+        features["gdp_growth_clean"] = yearly["destination_gdp_growth"].fillna(0.0)
+        features["inflation_rate_clean"] = yearly["destination_inflation"].fillna(0.0)
+        features["tariff_rate_clean"] = yearly["destination_applied_tariff_rate"].fillna(0.0)
+        features["tariff_preference_margin_clean"] = yearly["tariff_preference_margin"].fillna(0.0)
+        features["sanctions_present"] = (yearly["sanctions_present"].fillna(0.0) > 0).astype(float)
+        features["ofac_entity_count"] = yearly["ofac_entity_count"].fillna(0.0)
+        features["scomet_match_flag"] = (yearly["scomet_match_flag"].fillna(0.0) > 0).astype(float)
+        year_delta = yearly["year"].diff().fillna(0.0).clip(lower=0.0)
+        features["days_since_last_tx"] = year_delta * 365.0
+        features["first_seen_flag"] = (np.arange(len(yearly)) == 0).astype(float)
+        features["new_corridor_expansion"] = features["first_seen_flag"]
+        prior_trade = trade_value.shift(1).fillna(0.0)
+        historical_trade = trade_value.shift(2).rolling(6, min_periods=1).max().fillna(0.0)
+        features["dormant_corridor_reactivation"] = ((trade_value > 0) & (prior_trade <= 0) & (historical_trade > 0)).astype(float)
+
+        matrix = features[self.selected_features].replace([np.inf, -np.inf], np.nan).fillna(0.0).to_numpy(dtype=np.float32)
+        sequence = matrix[-sequence_length:]
+        if sequence.shape != (sequence_length, len(self.selected_features)):
+            return None
+
+        scaled = self.robust_scaler.transform(sequence)
+        input_tensor = torch.from_numpy(np.asarray(scaled, dtype=np.float32)).unsqueeze(0)
+        with torch.no_grad():
+            reconstructed = self.gru_autoencoder(input_tensor).cpu().numpy()[0]
+        reconstruction_error = float(np.mean((reconstructed - scaled) ** 2))
+
+        isolation_decision = None
+        if self.isolation_forest is not None:
+            isolation_decision = float(self.isolation_forest.decision_function(scaled[-1:].astype(np.float64))[0])
+
+        return {
+            "status": "available",
+            "model": "GRU Autoencoder",
+            "model_version": "trade-risk-gru-v1.0",
+            "reconstruction_error": round(reconstruction_error, 8),
+            "isolation_forest_decision": round(isolation_decision, 8) if isolation_decision is not None else None,
+            "sequence_years": [int(year) for year in yearly["year"].tail(sequence_length).tolist()],
+            "features_used": list(self.selected_features),
+        }
+
     def compute_risk_penalties(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Computes composite risk penalty points and risk level classifications.

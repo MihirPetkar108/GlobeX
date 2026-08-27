@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuthContext } from "@/context/AuthContext";
 import type { BusinessType, OrganizationRole } from "@/services/auth/authService";
 import { Listing } from "@/types/trade";
@@ -104,7 +104,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Notification indicator state for trade updates (counteroffers, status changes)
   const [hasUnreadTradeUpdates, setHasUnreadTradeUpdates] = useState<boolean>(true);
 
-  const refreshListings = async () => {
+  const refreshListings = useCallback(async () => {
     setListingsLoading(true);
     setListingsError(null);
     try {
@@ -116,7 +116,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       setListingsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshListings();

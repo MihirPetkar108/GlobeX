@@ -164,7 +164,7 @@ export const OnboardingPage: React.FC = () => {
             <Globe2 className="w-4 h-4 text-[var(--brand)]" />
           </div>
           <span className="font-display font-bold text-base tracking-tight text-[var(--text-primary)]">
-            GlobeX<span className="text-[var(--brand)]">AI</span>
+            Globex
           </span>
         </div>
 

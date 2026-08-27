@@ -34,11 +34,8 @@ export const AuthContextPanel: React.FC<AuthContextPanelProps> = ({ mode }) => {
             <Globe2 className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="font-display font-black text-sm tracking-wider text-white">
+            <span className="font-display font-black text-sm tracking-wider text-blue-900">
               GLOBEX
-            </span>
-            <span className="text-[9px] font-mono text-emerald-400 font-bold px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800/40">
-              AI
             </span>
           </div>
         </div>

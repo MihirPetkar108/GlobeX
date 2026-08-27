@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { ExportListing, ListingStatus, ExportRequest } from "@/data/exportRequests";
+import { aiService, ListingRecord } from "@/services/api/aiService";
 import { DetailDrawer } from "@/components/common/DetailDrawer";
 import { SpecularButton } from "@/components/ui/SpecularButton";
 import { toast } from "sonner";
@@ -35,6 +36,43 @@ const FILTER_LABELS: Record<ListingFilter, string> = {
   paused: "Paused",
   out_of_stock: "Out of Stock",
 };
+
+function toExportListing(record: ListingRecord): ExportListing {
+  const specs = record.specs || {};
+  const specificationText = Object.entries(specs)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(", ");
+  const status: ListingStatus =
+    record.status === "SOLD_OUT" || (record.quantityAvailable ?? 0) <= 0
+      ? "out_of_stock"
+      : "active";
+
+  return {
+    id: record.id,
+    productName: record.productName,
+    category: record.productCategory || "Agriculture",
+    description: record.description || "",
+    images: record.imageUrl ? [record.imageUrl] : [],
+    origin: record.exporterCountry || "India",
+    port: record.originPort || "",
+    price: record.price || 0,
+    currency: record.currency || "USD",
+    unit: record.unit || "MT",
+    availableQuantity: record.quantityAvailable || 0,
+    moq: record.minimumOrderQuantity || 0,
+    specifications: specificationText,
+    hsCode: record.hsCode || "",
+    incoterm: record.incoterms || "FOB",
+    paymentTerms: "",
+    certifications: record.certifications || [],
+    requiredDocuments: [],
+    status,
+    destinationMarkets: [],
+    deliveryTime: record.leadTimeDays ? `${record.leadTimeDays} days` : "",
+    packaging: "",
+    createdAt: record.createdAt ? record.createdAt.slice(0, 10) : "",
+  };
+}
 
 interface CreateEditModalProps {
   isOpen: boolean;
@@ -418,20 +456,82 @@ const CreateEditListingDrawer: React.FC<CreateEditModalProps> = ({
 
 export const ExportListingsPanel: React.FC = () => {
   const navigate = useNavigate();
-  const { exportListings, addExportListing, updateExportListing, exportRequests } = useWorkspace();
-  const [filter, setFilter] = useState<ListingFilter>("active");
+  const { user, listings, listingsLoading, refreshListings, exportRequests } = useWorkspace();
+  const [myListings, setMyListings] = useState<ExportListing[]>([]);
+  const [isLoadingMine, setIsLoadingMine] = useState(true);
+  const [filter, setFilter] = useState<ListingFilter>("ALL");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingListing, setEditingListing] = useState<ExportListing | null>(null);
   const [viewingListing, setViewingListing] = useState<ExportListing | null>(null);
 
   const filterTabs: ListingFilter[] = ["ALL", "active", "draft", "paused", "out_of_stock"];
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMine = async () => {
+      setIsLoadingMine(true);
+      try {
+        const records = user.organizationId
+          ? await aiService.getListings({ organizationId: user.organizationId, status: "ACTIVE" })
+          : [];
+        const mine = records.filter((record) =>
+          user.organizationId
+            ? record.organizationId === user.organizationId
+            : record.createdBy === user.userId
+        );
+        if (!cancelled) setMyListings(mine.map(toExportListing));
+      } catch {
+        if (!cancelled) {
+          const fallback = listings.filter((listing) => listing.exporterId === user.organizationId);
+          setMyListings(
+            fallback.map((listing) =>
+              toExportListing({
+                id: listing.id,
+                organizationId: listing.exporterId,
+                createdBy: null,
+                productName: listing.title,
+                productCategory: listing.category,
+                hsCode: listing.hsCode,
+                description: listing.description,
+                quantityAvailable: listing.availableQuantity,
+                unit: listing.unit,
+                price: listing.unitPriceUSD,
+                currency: "USD",
+                incoterms: "FOB",
+                status: "ACTIVE",
+                originPort: listing.originPort,
+                certifications: listing.certifications || [],
+                leadTimeDays: listing.leadTimeDays,
+                minimumOrderQuantity: listing.minimumOrderQuantity,
+                specs: listing.specs || {},
+                imageUrl: listing.imageUrl || null,
+                exporterName: listing.exporterName,
+                exporterCountry: listing.exporterCountry,
+                exporterCity: listing.exporterCity,
+                createdAt: "",
+                updatedAt: "",
+              })
+            )
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingMine(false);
+      }
+    };
+
+    loadMine();
+    return () => {
+      cancelled = true;
+    };
+  }, [user.organizationId, user.userId, listings]);
+
   const getFilterCount = (f: ListingFilter): number => {
-    if (f === "ALL") return exportListings.length;
-    return exportListings.filter((l) => l.status === f).length;
+    if (f === "ALL") return myListings.length;
+    return myListings.filter((l) => l.status === f).length;
   };
 
-  const filteredListings = exportListings.filter(
+  const filteredListings = myListings.filter(
     (l) => filter === "ALL" || l.status === filter
   );
 
@@ -466,17 +566,20 @@ export const ExportListingsPanel: React.FC = () => {
   };
 
   const handleSaveListing = (saved: ExportListing) => {
-    const exists = exportListings.some((l) => l.id === saved.id);
-    if (exists) {
-      updateExportListing(saved.id, saved);
-    } else {
-      addExportListing(saved);
-    }
+    setMyListings((current) => {
+      const exists = current.some((l) => l.id === saved.id);
+      return exists
+        ? current.map((l) => (l.id === saved.id ? saved : l))
+        : [saved, ...current];
+    });
+    refreshListings();
   };
 
   const toggleStatus = (e: React.MouseEvent, listing: ExportListing, newStatus: ListingStatus) => {
     e.stopPropagation();
-    updateExportListing(listing.id, { status: newStatus });
+    setMyListings((current) =>
+      current.map((item) => (item.id === listing.id ? { ...item, status: newStatus } : item))
+    );
     toast.success(`Listing status updated to ${newStatus}.`);
   };
 
@@ -487,60 +590,47 @@ export const ExportListingsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header Controls: Create Listing Button + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {filterTabs.map((f) => {
-            const count = getFilterCount(f);
-            const isActive = filter === f;
-            return (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
+      {/* Top Header Controls: Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {filterTabs.map((f) => {
+          const count = getFilterCount(f);
+          const isActive = filter === f;
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer",
+                isActive
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80"
+              )}
+            >
+              <span>{FILTER_LABELS[f]}</span>
+              <span
                 className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer",
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono",
                   isActive
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80"
+                    ? "bg-white/20 text-white"
+                    : count > 0
+                    ? "bg-slate-100 text-slate-700"
+                    : "text-slate-400"
                 )}
               >
-                <span>{FILTER_LABELS[f]}</span>
-                <span
-                  className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono",
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : count > 0
-                      ? "bg-slate-100 text-slate-700"
-                      : "text-slate-400"
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Create Listing Primary CTA */}
-        <SpecularButton
-          variant="emerald"
-          size="sm"
-          onClick={() => {
-            setEditingListing(null);
-            setIsCreateModalOpen(true);
-          }}
-          icon={<Plus className="w-4 h-4 stroke-[2.5]" />}
-          iconPosition="left"
-        >
-          Create Export Listing
-        </SpecularButton>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Product Listings Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredListings.length > 0 ? (
+        {isLoadingMine || listingsLoading ? (
+          <div className="col-span-full py-16 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-100 border-dashed">
+            Loading your listings…
+          </div>
+        ) : filteredListings.length > 0 ? (
           filteredListings.map((listing) => {
             const interest = getBuyerInterest(listing);
             const primaryImage = listing.images?.[0] || "https://pngimg.com/uploads/rice/rice_PNG13.png";
@@ -748,6 +838,11 @@ export const ExportListingsPanel: React.FC = () => {
         ) : (
           <div className="col-span-full py-16 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-100 border-dashed">
             No export listings found for {FILTER_LABELS[filter]}.
+            {filter === "ALL" && !user.organizationId
+              ? " Sign in with an organization account to see your catalog."
+              : filter === "ALL"
+                ? " Publish a listing from Create Listing and it will appear here."
+                : ""}
           </div>
         )}
       </div>

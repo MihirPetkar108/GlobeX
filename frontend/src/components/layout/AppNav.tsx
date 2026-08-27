@@ -20,13 +20,13 @@ import ExportSidebar from "@/components/layout/ExportSidebar";
 
 /**
  * Renders only when businessType === "BOTH" (canSwitchDirection).
- * Import and Export are now fully separate, locked flows — this control no
- * longer flips activeDirection in place. Clicking it navigates back to the
- * Dashboard picker (/home) so the user explicitly re-chooses a flow; that's
- * the only way to switch once inside one.
+ * Import and Export share this control, but the destination preserves the
+ * section the user is working in: trades stay trades and marketplace work
+ * stays marketplace work.
  */
 const DirectionControl: React.FC = () => {
-  const { activeDirection, canSwitchDirection } = useWorkspace();
+  const { activeDirection, canSwitchDirection, setActiveDirection } = useWorkspace();
+  const location = useLocation();
   const navigate = useNavigate();
 
   if (!canSwitchDirection) {
@@ -37,10 +37,20 @@ const DirectionControl: React.FC = () => {
     );
   }
 
+  const switchDirection = () => {
+    const isTradeSection = location.pathname === "/export-trades" || location.pathname === "/trades";
+    const destination = activeDirection === "Export"
+      ? isTradeSection ? "/trades" : "/discover"
+      : isTradeSection ? "/export-trades" : "/export-listings";
+
+    setActiveDirection(activeDirection === "Export" ? "Import" : "Export");
+    navigate(destination);
+  };
+
   return (
     <button
       type="button"
-      onClick={() => navigate("/home")}
+      onClick={switchDirection}
       className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] border border-[var(--hairline)] bg-[var(--surface-1)] hover:border-[var(--brand)]/40 hover:bg-[var(--brand-subtle)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--brand)] transition-colors cursor-pointer"
       title="Switch flow"
     >
@@ -111,7 +121,7 @@ export const AppNav: React.FC = () => {
                 <Globe2 className="w-4 h-4 text-[var(--brand)]" />
               </div>
               <span className="font-display font-bold text-base tracking-tight text-[var(--text-primary)]">
-                GlobeX<span className="text-[var(--brand)]">AI</span>
+                Globex
               </span>
             </Link>
 
@@ -233,7 +243,7 @@ export const AppNav: React.FC = () => {
                         <Globe2 className="w-3.5 h-3.5 text-emerald-600" />
                       </div>
                       <span className="font-display font-bold text-sm tracking-tight text-slate-900">
-                        Globex<span className="text-emerald-600">AI</span>
+                        Globex
                       </span>
                     </Link>
                   </div>

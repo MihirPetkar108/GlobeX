@@ -61,8 +61,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: "TRD-LTC-CL-992",
       title: "Lithium Carbonate 99.5%",
-      flagOrigin: "🇨🇱",
-      flagDest: "🇮🇳",
+      originIso2: "cl",
+      originCountry: "Chile",
+      destIso2: "in",
+      destCountry: "India",
       route: "Chile → India",
       valueText: "$3.20M",
       statusText: "Awaiting Clearance",
@@ -72,8 +74,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: "TRD-WHT-CA-501",
       title: "Organic Red Wheat",
-      flagOrigin: "🇨🇦",
-      flagDest: "🇮🇳",
+      originIso2: "ca",
+      originCountry: "Canada",
+      destIso2: "in",
+      destCountry: "India",
       route: "Canada → India",
       valueText: "$920K",
       statusText: "In Transit",
@@ -83,8 +87,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: "TRD-SOL-TW-331",
       title: "Solar Inverter Modules",
-      flagOrigin: "🇹🇼",
-      flagDest: "🇮🇳",
+      originIso2: "tw",
+      originCountry: "Taiwan",
+      destIso2: "in",
+      destCountry: "India",
       route: "Taiwan → India",
       valueText: "$1.45M",
       statusText: "Ready to Receive",
@@ -98,8 +104,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: FLAGSHIP_DEMO_TRADE.id,
       title: "1121 Basmati Rice",
-      flagOrigin: "🇮🇳",
-      flagDest: "🇦🇪",
+      originIso2: "in",
+      originCountry: "India",
+      destIso2: "ae",
+      destCountry: "UAE",
       route: "India → UAE",
       valueText: "$550K",
       statusText: "Sailing (MSC ANNA)",
@@ -109,8 +117,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: "TRD-PEP-IN-442",
       title: "Tellicherry Pepper",
-      flagOrigin: "🇮🇳",
-      flagDest: "🇳🇱",
+      originIso2: "in",
+      originCountry: "India",
+      destIso2: "nl",
+      destCountry: "Netherlands",
       route: "India → Netherlands",
       valueText: "$410K",
       statusText: "Cleared for Export",
@@ -120,8 +130,10 @@ export const DashboardPage: React.FC = () => {
     {
       id: "TRD-YRN-IN-780",
       title: "Combed Cotton Yarn",
-      flagOrigin: "🇮🇳",
-      flagDest: "🇮🇹",
+      originIso2: "in",
+      originCountry: "India",
+      destIso2: "it",
+      destCountry: "Italy",
       route: "India → Italy",
       valueText: "$880K",
       statusText: "Ready to Ship",
@@ -482,11 +494,23 @@ export const DashboardPage: React.FC = () => {
                     to={trade.actionHref}
                     className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 hover:border-slate-400 hover:shadow-md transition-all flex flex-col justify-between gap-4 group cursor-pointer"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="text-2xl font-mono tracking-widest">
-                        {trade.flagOrigin} {trade.flagDest}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-wrap text-xs font-bold text-slate-700">
+                        <img
+                          src={`https://flagcdn.com/w40/${trade.originIso2}.png`}
+                          alt={trade.originCountry}
+                          className="w-5 h-3.5 object-cover rounded-xs border border-slate-200/70 shadow-2xs shrink-0"
+                        />
+                        <span className="truncate">{trade.originCountry}</span>
+                        <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+                        <img
+                          src={`https://flagcdn.com/w40/${trade.destIso2}.png`}
+                          alt={trade.destCountry}
+                          className="w-5 h-3.5 object-cover rounded-xs border border-slate-200/70 shadow-2xs shrink-0"
+                        />
+                        <span className="truncate">{trade.destCountry}</span>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-colors text-slate-400">
+                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-white transition-colors text-slate-400 shrink-0">
                         <ArrowRight className="w-4 h-4" />
                       </div>
                     </div>

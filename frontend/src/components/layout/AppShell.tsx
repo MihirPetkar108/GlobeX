@@ -71,7 +71,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       {/* Clean minimal footer */}
       <footer className="border-t border-[var(--hairline)] py-5 px-4 text-center text-xs text-[var(--text-tertiary)] font-sans">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>GlobeXAI — Verified Cross-Border Trade &amp; Programmable Escrow Settlement</span>
+          <span>Globex — Verified Cross-Border Trade &amp; Programmable Escrow Settlement</span>
           <span className="font-mono text-[11px] text-[var(--text-muted)]">Local Hardhat (31337) · CEPA Schedule Rules</span>
         </div>
       </footer>

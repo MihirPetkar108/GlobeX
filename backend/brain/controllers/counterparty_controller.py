@@ -56,6 +56,59 @@ def _load_risk_models():
                 logger.warning("Failed loading trade risk model from %s: %s", d, exc)
     return None
 
+
+@lru_cache(maxsize=1)
+def _load_partner_risk_integrator():
+    """Load the persisted GRU/IF artifacts used for corridor evidence."""
+    try:
+        from brain.partner_discovery.risk_integration import TradeRiskIntegrator
+
+        candidates = [
+            PROJECT_ROOT / "brain" / "models" / "trade_risk",
+            PROJECT_ROOT / "backend" / "brain" / "models" / "trade_risk",
+            PROJECT_ROOT / "models" / "trade_risk",
+        ]
+        for model_dir in candidates:
+            if (model_dir / "gru_autoencoder.pt").exists() and (model_dir / "selected_features.json").exists():
+                integrator = TradeRiskIntegrator(risk_model_dir=str(model_dir))
+                if integrator.gru_autoencoder is not None and integrator.robust_scaler is not None:
+                    return integrator
+    except Exception as exc:
+        logger.warning("Failed loading partner GRU artifacts: %s", exc)
+    return None
+
+
+@lru_cache(maxsize=1)
+def _load_partner_panel():
+    """Load the canonical observed exporter corridor panel once per process."""
+    import pandas as pd
+
+    candidates = [
+        PROJECT_ROOT / "brain" / "processed" / "01_partner_discovery_india_as_exporter.parquet",
+        PROJECT_ROOT / "backend" / "brain" / "processed" / "01_partner_discovery_india_as_exporter.parquet",
+    ]
+    for panel_path in candidates:
+        if panel_path.exists():
+            return pd.read_parquet(panel_path)
+    return None
+
+
+def _partner_gru_signal(req: "CounterpartyMatchRequest") -> Dict[str, Any]:
+    """Return real GRU evidence, or an explicit unavailable state."""
+    integrator = _load_partner_risk_integrator()
+    panel = _load_partner_panel()
+    if integrator is None or panel is None:
+        return {"status": "unavailable", "reason": "GRU artifacts or canonical corridor history unavailable."}
+    try:
+        signal = integrator.score_corridor(panel, req.destination_country, req.hs6)
+        return signal or {
+            "status": "unavailable",
+            "reason": "Not enough observed history for this destination and HS6 corridor.",
+        }
+    except Exception as exc:
+        logger.warning("Partner GRU scoring failed for %s/%s: %s", req.destination_country, req.hs6, exc)
+        return {"status": "unavailable", "reason": "GRU inference failed for the requested corridor."}
+
 # ---------------------------------------------------------------------------
 # DB availability check (lazy — checked per-request to honour runtime env)
 # ---------------------------------------------------------------------------
@@ -441,6 +494,8 @@ class CounterpartyRiskRequest(BaseModel):
 )
 def counterparty_match(req: CounterpartyMatchRequest) -> Dict[str, Any]:
     analysis_id = str(uuid.uuid4())
+    gru_signal = _partner_gru_signal(req)
+    gru_available = gru_signal.get("status") == "available"
 
     if _db_available():
         # ------------------------------------------------------------------
@@ -500,7 +555,11 @@ def counterparty_match(req: CounterpartyMatchRequest) -> Dict[str, Any]:
                 "status": "OK",
                 "data_source": "database",
                 "counterparties": counterparties,
-                "model_version": "cm-v1.0",
+                "model_version": "cm-v1.0+trade-risk-gru-v1.0" if gru_available else "cm-v1.0",
+                "partner_matching": {
+                    "match_engine": "country_trust_match",
+                    "gru_autoencoder": gru_signal,
+                },
                 "analysis_id": analysis_id,
             }
 
@@ -525,7 +584,11 @@ def counterparty_match(req: CounterpartyMatchRequest) -> Dict[str, Any]:
         "data_source": "country_risk_engine",
         "country_intelligence": country_intel,
         "counterparties": counterparties,
-        "model_version": "cm-v2.0",
+        "model_version": "cm-v2.0+trade-risk-gru-v1.0" if gru_available else "cm-v2.0",
+        "partner_matching": {
+            "match_engine": "country_trust_match",
+            "gru_autoencoder": gru_signal,
+        },
         "analysis_id": analysis_id,
     }
 
