@@ -1,11 +1,13 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
-import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
-import { FLAGSHIP_DEMO_TRADE, DEMO_SHIPMENT_EVENT, DEMO_AUDIT_LOGS } from "@/data/mockTradeData";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
+import { EmptyState } from "@/components/common/EmptyState";
+import { LoadingSkeleton } from "@/components/common/LoadingSkeleton";
 import SpecularButton from "@/components/ui/SpecularButton";
 import { DetailDrawer } from "@/components/common/DetailDrawer";
+import { tradesService, TradeRecord, BackendTradeStatus, BackendUnavailableError } from "@/services/api/tradesService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocumentVerificationStudio from "@/components/documents/DocumentVerificationStudio";
 import PaymentEscrowFlow from "@/components/escrow/PaymentEscrowFlow";
@@ -39,6 +41,7 @@ import {
   X,
   Sparkles,
   Search,
+  WifiOff,
 } from "lucide-react";
 
 const AgentChat = lazy(() =>
@@ -56,52 +59,128 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 type TradeStatusState = "requested" | "confirmed" | "rejected" | "counter";
 
+/**
+ * Maps the real backend's 12-value trade_status enum to the one of 4 UI
+ * states this page renders. ACCEPTED/AGREED and everything downstream of
+ * acceptance (IN_PROGRESS/SHIPPED/DELIVERED/DISPUTED/COMPLETED) all map to
+ * "confirmed" — they already live inside the 5-tab workspace below, which
+ * represents the further steps a trade goes through once accepted.
+ */
+function toTradeStatusState(status: BackendTradeStatus): TradeStatusState {
+  switch (status) {
+    case "CREATED":
+    case "OFFERED":
+      return "requested";
+    case "COUNTER_OFFERED":
+      return "counter";
+    case "REJECTED":
+    case "CANCELLED":
+      return "rejected";
+    case "ACCEPTED":
+    case "AGREED":
+    case "IN_PROGRESS":
+    case "SHIPPED":
+    case "DELIVERED":
+    case "DISPUTED":
+    case "COMPLETED":
+    default:
+      return "confirmed";
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const TradeWorkspacePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useWorkspace();
+  const { user, listings } = useWorkspace();
 
-  const tradeId = id || "TRD-2026-89412";
+  const tradeId = id || "";
 
-  // Determine initial state based on route or search params
-  const getInitialState = (): TradeStatusState => {
-    const queryState = searchParams.get("state") as TradeStatusState;
-    if (queryState && ["requested", "confirmed", "rejected", "counter"].includes(queryState)) {
-      return queryState;
+  const [trade, setTrade] = useState<TradeRecord | null>(null);
+  const [tradeState, setTradeState] = useState<TradeStatusState>("requested");
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [notConnected, setNotConnected] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchTrade = async () => {
+    if (!UUID_RE.test(tradeId)) {
+      setIsLoading(false);
+      setNotFound(true);
+      return;
     }
-    if (tradeId.includes("74910")) return "requested";
-    if (tradeId.includes("61204")) return "counter";
-    if (tradeId.includes("50119")) return "confirmed";
-    return "requested";
+    setIsLoading(true);
+    setNotFound(false);
+    setNotConnected(false);
+    setLoadError(null);
+    try {
+      const record = await tradesService.getTrade(tradeId);
+      setTrade(record);
+      setTradeState(toTradeStatusState(record.status));
+    } catch (err) {
+      if (err instanceof BackendUnavailableError) {
+        setNotConnected(true);
+      } else {
+        setLoadError(err instanceof Error ? err.message : "Could not load this trade.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const [tradeState, setTradeState] = useState<TradeStatusState>(getInitialState);
+  useEffect(() => {
+    fetchTrade();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tradeId]);
 
   // Counteroffer form state
   const [isCounterFormOpen, setIsCounterFormOpen] = useState(false);
   const [revisedQty, setRevisedQty] = useState<number>(550);
   const [revisedPrice, setRevisedPrice] = useState<number>(1060);
 
-  // Standard Trade Overview Data
-  const selectedListing = {
-    title: "1121 Steam Extra Long Grain Basmati Rice",
-    category: "Agriculture",
-    image: "https://pngimg.com/uploads/rice/rice_PNG13.png",
-    originCountry: "India",
-    originFlag: "in",
-    originPort: "Cochin Port (JNPT), Mumbai",
-    destCountry: "United Arab Emirates",
-    destFlag: "ae",
-    destPort: "Jebel Ali Port, Dubai",
-    supplierName: "Acme Exports Ltd",
-    buyerName: user.companyName || "Demo Exports Pvt Ltd",
-    quantity: 600,
-    unit: "tonne",
-    agreedPrice: 1100,
-    totalValue: 681600,
-    aiMatchScore: 94,
-  };
+  // Best-effort enrichment: the backend trade row has no product/country
+  // fields, only raw ids — match against listings already fetched by
+  // WorkspaceContext. Falls back to the flagship demo display when there's
+  // no matching listing (e.g. pre-DB-setup, or before a real trade loads).
+  const matchedListing = trade ? listings.find((l) => l.id === trade.listing_id) : undefined;
+  const selectedListing = matchedListing
+    ? {
+        title: matchedListing.title,
+        category: matchedListing.category,
+        image: "https://cdn-icons-png.flaticon.com/512/3174/3174880.png",
+        originCountry: matchedListing.exporterCountry,
+        originFlag: "in",
+        originPort: matchedListing.originPort || "Origin port",
+        destCountry: user.country || "Destination",
+        destFlag: "ae",
+        destPort: "Destination port",
+        supplierName: matchedListing.exporterName,
+        buyerName: user.companyName || "Your organization",
+        quantity: trade?.quantity ?? matchedListing.availableQuantity,
+        unit: matchedListing.unit,
+        agreedPrice: trade?.agreed_price ?? matchedListing.unitPriceUSD,
+        totalValue: trade?.total_amount ?? (trade?.quantity ?? 0) * (trade?.agreed_price ?? 0),
+        aiMatchScore: matchedListing.aiMatchScore ?? 90,
+      }
+    : {
+        title: "1121 Steam Extra Long Grain Basmati Rice",
+        category: "Agriculture",
+        image: "https://pngimg.com/uploads/rice/rice_PNG13.png",
+        originCountry: "India",
+        originFlag: "in",
+        originPort: "Cochin Port (JNPT), Mumbai",
+        destCountry: "United Arab Emirates",
+        destFlag: "ae",
+        destPort: "Jebel Ali Port, Dubai",
+        supplierName: "Acme Exports Ltd",
+        buyerName: user.companyName || "Demo Exports Pvt Ltd",
+        quantity: trade?.quantity ?? 600,
+        unit: "tonne",
+        agreedPrice: trade?.agreed_price ?? 1100,
+        totalValue: trade?.total_amount ?? 681600,
+        aiMatchScore: 94,
+      };
 
   // State Tabs switcher
   const [activeTab, setActiveTab] = useState<TabId>(() => {
@@ -195,37 +274,26 @@ export const TradeWorkspacePage: React.FC = () => {
           }
         />
 
-        {/* ── DEMO STATE SWITCHER BAR (EASY TESTING FOR ALL 4 STATES) ────────── */}
-        <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-2 overflow-x-auto">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2 shrink-0">
-            Switch Trade State:
-          </span>
-          <div className="flex items-center gap-2 shrink-0">
-            {(
-              [
-                { key: "requested", label: "State 1: Requested / Pending" },
-                { key: "confirmed", label: "State 2: Confirmed / Active" },
-                { key: "counter", label: "State 3: Counter Offer" },
-                { key: "rejected", label: "State 4: Rejected / Declined" },
-              ] as const
-            ).map((st) => (
-              <button
-                key={st.key}
-                type="button"
-                onClick={() => setTradeState(st.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  tradeState === st.key
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-
+        {isLoading ? (
+          <LoadingSkeleton variant="card" count={2} />
+        ) : notConnected ? (
+          <EmptyState
+            icon={WifiOff}
+            title="Backend not connected yet"
+            description="This trade will load once the backend's database connection is configured."
+          />
+        ) : notFound || loadError ? (
+          <EmptyState
+            title="Trade not found"
+            description={loadError || "This trade doesn't exist or the link is out of date."}
+            action={
+              <Link to="/trades" className="text-xs font-medium text-emerald-600 hover:text-emerald-500">
+                Back to Trades
+              </Link>
+            }
+          />
+        ) : (
+          <>
         {/* ── TOP TRADE SUMMARY CARD (PROMINENT BALANCED METRICS) ───────────────── */}
         <div className="bg-gradient-to-br from-sky-50/90 via-blue-50/60 to-sky-50/90 border border-sky-200/90 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xs font-sans">
           
@@ -628,6 +696,8 @@ export const TradeWorkspacePage: React.FC = () => {
             </div>
 
           </div>
+        )}
+          </>
         )}
 
       </div>

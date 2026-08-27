@@ -7,7 +7,6 @@ import { aiService } from "@/services/api/aiService";
 import { AppShell } from "@/components/layout/AppShell";
 import ListingDetailDrawer from "@/components/marketplace/ListingDetailDrawer";
 import CreateTradeRequestDrawer from "@/components/marketplace/CreateTradeRequestDrawer";
-import ExportListingsPanel from "@/components/marketplace/ExportListingsPanel";
 import { n8nWorkflowService } from "@/services/n8n/workflowService";
 import { Search, Heart, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -224,7 +223,7 @@ const TraderCard = ({
 
 export const DiscoverPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const { listings, isExporterView, setActiveDirection } = useWorkspace();
+  const { listings } = useWorkspace();
 
   // Fallback to DEMO_LISTINGS if API listings are empty
   const activeListings = useMemo(() => {
@@ -252,22 +251,14 @@ export const DiscoverPage: React.FC = () => {
 
   // Execute Search / Fetch (forces API refresh if needed)
   const handleFetchList = () => {
-    if (isExporterView) {
-       aiService.rankMarketOpportunity(filterProduct || "Basmati Rice", parseFloat(filterQty) || 1000, "balanced", 6).catch(() => {});
-    } else {
-       aiService.semanticMatch(filterProduct || "Basmati Rice", undefined, parseFloat(filterQty) || 1000, "IND", 100630).catch(() => {});
-    }
+    aiService.semanticMatch(filterProduct || "Basmati Rice", undefined, parseFloat(filterQty) || 1000, "IND", 100630).catch(() => {});
   };
 
   // Initial load API execution
   useEffect(() => {
     n8nWorkflowService.checkHealth().catch(() => {});
-    if (isExporterView) {
-       aiService.rankMarketOpportunity("Basmati Rice", 1000, "balanced", 6).catch(() => {});
-    } else {
-       aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
-    }
-  }, [isExporterView]);
+    aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
+  }, []);
 
   // Derived filtered items (reactive so selecting All Products or changing filters instantly displays the demo cards)
   const filteredListings = useMemo(() => {
@@ -314,43 +305,17 @@ export const DiscoverPage: React.FC = () => {
       <div className="w-full min-h-screen bg-slate-50 p-4 sm:p-6 md:p-8 selection:bg-emerald-100">
         <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
           
-          {/* Header & Toggle */}
+          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
             <div>
               <h1 className="text-3xl sm:text-4xl font-display font-black text-slate-900 tracking-tight">Marketplace</h1>
               <p className="text-sm text-slate-500 mt-2 font-medium">
-                {isExporterView
-                  ? "My products available for international buyers."
-                  : "Discover and connect with verified global traders."}
+                Discover and connect with verified global traders.
               </p>
-            </div>
-            
-            <div className="flex items-center bg-slate-200/50 p-1.5 rounded-full border border-slate-200/60 shadow-inner">
-              <button
-                onClick={() => setActiveDirection("Import")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-sm font-bold transition-all",
-                  !isExporterView ? "bg-white text-emerald-700 shadow shadow-slate-200/50" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                IMPORT (Buy)
-              </button>
-              <button
-                onClick={() => setActiveDirection("Export")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-sm font-bold transition-all",
-                  isExporterView ? "bg-white text-emerald-700 shadow shadow-slate-200/50" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                EXPORT (Sell)
-              </button>
             </div>
           </div>
 
-          {isExporterView ? (
-            <ExportListingsPanel />
-          ) : (
-            <>
+          <>
               {/* Full-width Filter Control with Product Dropdown & Icon-Only Green Search Button */}
               <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-3 w-full">
                 
@@ -454,8 +419,7 @@ export const DiscoverPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            </>
-          )}
+          </>
         </div>
 
         <ListingDetailDrawer 

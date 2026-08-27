@@ -15,13 +15,19 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import CommandPalette from "@/components/common/CommandPalette";
-import LifecycleRail from "@/components/layout/LifecycleRail";
+import ImportSidebar from "@/components/layout/ImportSidebar";
+import ExportSidebar from "@/components/layout/ExportSidebar";
 
 /**
  * Renders only when businessType === "BOTH" (canSwitchDirection).
+ * Import and Export are now fully separate, locked flows — this control no
+ * longer flips activeDirection in place. Clicking it navigates back to the
+ * Dashboard picker (/home) so the user explicitly re-chooses a flow; that's
+ * the only way to switch once inside one.
  */
 const DirectionControl: React.FC = () => {
-  const { activeDirection, setActiveDirection, canSwitchDirection } = useWorkspace();
+  const { activeDirection, canSwitchDirection } = useWorkspace();
+  const navigate = useNavigate();
 
   if (!canSwitchDirection) {
     return (
@@ -34,9 +40,9 @@ const DirectionControl: React.FC = () => {
   return (
     <button
       type="button"
-      onClick={() => setActiveDirection(activeDirection === "Export" ? "Import" : "Export")}
+      onClick={() => navigate("/home")}
       className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] border border-[var(--hairline)] bg-[var(--surface-1)] hover:border-[var(--brand)]/40 hover:bg-[var(--brand-subtle)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--brand)] transition-colors cursor-pointer"
-      title="Switch trade direction"
+      title="Switch flow"
     >
       <ArrowLeftRight className="w-3.5 h-3.5" />
       <span>{activeDirection === "Export" ? "Exporting" : "Importing"}</span>
@@ -45,7 +51,7 @@ const DirectionControl: React.FC = () => {
 };
 
 export const AppNav: React.FC = () => {
-  const { user, logout, hasUnreadTradeUpdates } = useWorkspace();
+  const { user, logout, hasUnreadTradeUpdates, isExporterView } = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -239,7 +245,7 @@ export const AppNav: React.FC = () => {
                   <span className="truncate font-semibold">{user.companyName || "Demo Exports Pvt Ltd"}</span>
                 </div>
 
-                <LifecycleRail mobile />
+                {isExporterView ? <ExportSidebar mobile /> : <ImportSidebar mobile />}
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
