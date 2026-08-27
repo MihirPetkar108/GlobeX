@@ -90,7 +90,7 @@ export const ExportDiscoverPage: React.FC = () => {
     setCompaniesError(null);
     setCompaniesLoading(true);
     aiService
-      .getCompaniesBySimilarity(data.destination.iso3, product, undefined, 10)
+      .getCompaniesBySimilarity(data.destination.iso3, product, product, 10)
       .then(setCompanies)
       .catch((err) => setCompaniesError(err instanceof Error ? err.message : "Company lookup failed."))
       .finally(() => setCompaniesLoading(false));

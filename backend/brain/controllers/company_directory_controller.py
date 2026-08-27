@@ -67,20 +67,35 @@ ISO3_TO_COUNTRY_NAME: Dict[str, str] = {
 # MarketplacePage.tsx CATEGORIES; falls back to no filter (whole-country,
 # highest market cap) when nothing matches, rather than dropping to zero rows.
 COMMODITY_INDUSTRY_MAP: List[tuple[re.Pattern, List[str]]] = [
-    (re.compile(r"rice|wheat|grain|cashew|coffee|tea|nut|sugar|maize|corn", re.I),
-     ["Farm Products", "Packaged Foods", "Agricultural Inputs", "Farm & Heavy Construction Machinery"]),
-    (re.compile(r"pepper|turmeric|chili|chilli|spice", re.I),
-     ["Packaged Foods", "Farm Products", "Grocery Stores"]),
-    (re.compile(r"cotton|yarn|fabric|textile|apparel|garment", re.I),
-     ["Textile Manufacturing", "Apparel Manufacturing", "Apparel Retail", "Footwear & Accessories"]),
-    (re.compile(r"paracetamol|pharma|drug|api\b|medicine|generic", re.I),
-     ["Drug Manufacturers - Specialty & Generic", "Drug Manufacturers - General", "Biotechnology", "Medical Instruments & Supplies"]),
-    (re.compile(r"lithium|steel|coal|jewel|gold|metal|ore", re.I),
-     ["Steel", "Other Industrial Metals & Mining", "Gold", "Other Precious Metals & Mining", "Metal Fabrication"]),
-    (re.compile(r"solar|inverter|module|electronic|semiconductor", re.I),
-     ["Solar", "Semiconductors", "Electronic Components", "Electrical Equipment & Parts"]),
-    (re.compile(r"chemical", re.I),
-     ["Specialty Chemicals", "Chemicals", "Agricultural Inputs"]),
+    (re.compile(r"rice|wheat|grain|cashew|coffee|tea|nut|sugar|maize|corn|flour|pulses|dal|cereal", re.I),
+     ["Farm Products", "Packaged Foods", "Food Distribution", "Agricultural Inputs", "Grocery Stores", "Food Wholesale", "Confectioners", "Discount Stores", "Beverages - Non - Alcoholic"]),
+    (re.compile(r"pepper|turmeric|chili|chilli|spice|ginger|garlic|cardamom", re.I),
+     ["Packaged Foods", "Farm Products", "Food Distribution", "Grocery Stores", "Specialty Chemicals"]),
+    (re.compile(r"cotton|yarn|fabric|textile|apparel|garment|silk|wool", re.I),
+     ["Textile Manufacturing", "Apparel Manufacturing", "Apparel Retail", "Footwear & Accessories", "Department Stores"]),
+    (re.compile(r"paracetamol|pharma|drug|api\b|medicine|generic|vaccine|biotech", re.I),
+     ["Drug Manufacturers - Specialty & Generic", "Drug Manufacturers - General", "Biotechnology", "Medical Instruments & Supplies", "Healthcare Plans"]),
+    (re.compile(r"lithium|steel|coal|jewel|gold|metal|ore|iron|copper|aluminum|zinc", re.I),
+     ["Steel", "Other Industrial Metals & Mining", "Gold", "Other Precious Metals & Mining", "Metal Fabrication", "Aluminum"]),
+    (re.compile(r"solar|inverter|module|electronic|semiconductor|battery|hardware", re.I),
+     ["Solar", "Semiconductors", "Electronic Components", "Electrical Equipment & Parts", "Scientific & Technical Instruments"]),
+    (re.compile(r"chemical|fertilizer|polymer|resin|plastic", re.I),
+     ["Specialty Chemicals", "Chemicals", "Agricultural Inputs", "Commodity Chemicals"]),
+]
+
+COMMODITY_SECTOR_MAP: List[tuple[re.Pattern, List[str]]] = [
+    (re.compile(r"rice|wheat|grain|cashew|coffee|tea|nut|sugar|maize|corn|pepper|turmeric|chili|chilli|spice|food|agri|cereal|pulses", re.I),
+     ["Consumer Defensive", "Basic Materials", "Consumer Cyclical"]),
+    (re.compile(r"cotton|yarn|fabric|textile|apparel|garment|silk", re.I),
+     ["Consumer Cyclical", "Industrials"]),
+    (re.compile(r"paracetamol|pharma|drug|api\b|medicine|generic|vaccine", re.I),
+     ["Healthcare"]),
+    (re.compile(r"lithium|steel|coal|jewel|gold|metal|ore|iron|copper|aluminum", re.I),
+     ["Basic Materials", "Industrials"]),
+    (re.compile(r"solar|inverter|module|electronic|semiconductor|battery", re.I),
+     ["Technology", "Industrials"]),
+    (re.compile(r"chemical|fertilizer", re.I),
+     ["Basic Materials", "Industrials"]),
 ]
 
 
@@ -111,18 +126,12 @@ def _load_companies() -> pd.DataFrame:
     df = df.dropna(subset=["CompanyName", "Country", "MarketCap"])
     df = df[df["Country"].str.strip() != ""]
 
-    # The source export has ~40% literal duplicate (CompanyName, Country) rows
-    # where every field matches except MarketCap, which varies wildly between
-    # duplicates (e.g. Caterpillar Inc. ranges from $145B to a nonsensical
-    # $199T across 6 rows) — a scrape/scaling artifact in the raw data, not a
-    # real re-valuation. Taking the max would surface the corrupted outlier as
-    # the "top" company; the median is robust to a single bad row.
     df.loc[df["MarketCap"] <= 0, "MarketCap"] = pd.NA
     df["MarketCap"] = df.groupby(["CompanyName", "Country"])["MarketCap"].transform("median")
     df = df.dropna(subset=["MarketCap"])
     df = df.drop_duplicates(subset=["CompanyName", "Country"], keep="first")
 
-    # De-duplicate slug collisions deterministically (append a short suffix)
+    # De-duplicate slug collisions deterministically
     df["company_id"] = df["CompanyName"].map(_slugify)
     dupe_mask = df["company_id"].duplicated(keep=False)
     if dupe_mask.any():
@@ -146,6 +155,15 @@ def _industries_for_commodity(commodity: Optional[str]) -> List[str]:
     for pattern, industries in COMMODITY_INDUSTRY_MAP:
         if pattern.search(commodity):
             return industries
+    return []
+
+
+def _sectors_for_commodity(commodity: Optional[str]) -> List[str]:
+    if not commodity:
+        return []
+    for pattern, sectors in COMMODITY_SECTOR_MAP:
+        if pattern.search(commodity):
+            return sectors
     return []
 
 
@@ -183,67 +201,94 @@ def _row_to_summary(row: pd.Series) -> Dict[str, Any]:
     return result
 
 
-def _rank_by_similarity_and_valuation(candidates: pd.DataFrame, query: str) -> pd.DataFrame:
-    """Ranks `candidates` by a blend of TF-IDF/cosine text similarity (query
-    vs. each company's real BusinessSummary) and log-scaled valuation.
-    Additive/optional — only invoked when a caller passes `query`; the
-    default MarketCap-only ranking is untouched."""
+def _rank_by_similarity_and_valuation(candidates: pd.DataFrame, query: str, commodity: Optional[str] = None) -> pd.DataFrame:
+    """Ranks `candidates` by a multi-factor blend of:
+    1. TF-IDF / Cosine Text Similarity on (CompanyName + Industry + Sector + BusinessSummary)
+    2. Sector Relevance multiplier (boosts target industry, penalizes mismatched tech/financials)
+    3. Log-scaled Company Valuation (MarketCap)
+    """
     if candidates.empty:
         return candidates.assign(similarity_score=[], valuation_score=[], combined_score=[])
 
     ranked = candidates.copy()
-    summaries = ranked["BusinessSummary"].fillna("").astype(str)
+    
+    # Textual corpus combining name, industry, sector, and full business summary
+    text_corpus = (
+        ranked["CompanyName"].fillna("").astype(str) + " " +
+        ranked["Industry"].fillna("").astype(str) + " " +
+        ranked["Sector"].fillna("").astype(str) + " " +
+        ranked["BusinessSummary"].fillna("").astype(str)
+    )
 
-    if summaries.str.strip().eq("").all():
-        # No text to vectorize against (e.g. dataset not populated yet) —
-        # degrade to valuation-only rather than raising.
+    search_query = f"{query or ''} {commodity or ''}".strip()
+
+    if text_corpus.str.strip().eq("").all() or not search_query:
         similarity = np.zeros(len(ranked))
     else:
-        vectorizer = TfidfVectorizer(stop_words="english")
-        corpus = list(summaries) + [query]
+        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
+        corpus = list(text_corpus) + [search_query]
         try:
             tfidf_matrix = vectorizer.fit_transform(corpus)
         except ValueError:
-            # Empty vocabulary after stop-word removal (e.g. query is just
-            # stop words/punctuation) — no similarity signal available.
             similarity = np.zeros(len(ranked))
         else:
             query_vec = tfidf_matrix[-1]
             company_vecs = tfidf_matrix[:-1]
             similarity = cosine_similarity(query_vec, company_vecs).ravel()
 
-    ranked["similarity_score"] = similarity
+    # Sector relevance scoring
+    target_industries = set(_industries_for_commodity(commodity or query))
+    target_sectors = set(_sectors_for_commodity(commodity or query))
 
+    sector_bonus = np.zeros(len(ranked))
+    for i, (_, row) in enumerate(ranked.iterrows()):
+        ind = str(row.get("Industry") or "")
+        sec = str(row.get("Sector") or "")
+        
+        if ind in target_industries:
+            sector_bonus[i] = 1.0
+        elif sec in target_sectors:
+            sector_bonus[i] = 0.7
+        else:
+            if target_sectors and sec and sec not in target_sectors:
+                sector_bonus[i] = -0.5
+            else:
+                sector_bonus[i] = 0.0
+
+    # Normalized text similarity score (0 to 1)
+    sim_max = similarity.max() if len(similarity) > 0 and similarity.max() > 0 else 1.0
+    norm_similarity = np.clip(similarity / (sim_max if sim_max > 0 else 1.0), 0.0, 1.0)
+    ranked["similarity_score"] = norm_similarity
+
+    # Normalized valuation score (0 to 1)
     market_cap = ranked["MarketCap"].astype(float).clip(lower=1.0)
     log_cap = np.log(market_cap)
     cap_min, cap_max = log_cap.min(), log_cap.max()
     if cap_max > cap_min:
         valuation_score = (log_cap - cap_min) / (cap_max - cap_min)
     else:
-        # Single candidate, or every candidate has identical MarketCap.
         valuation_score = pd.Series(1.0, index=log_cap.index)
     ranked["valuation_score"] = valuation_score
 
+    # Combined ranking: 50% TF-IDF Text Similarity + 30% Sector Relevance + 20% Valuation Scale
     ranked["combined_score"] = (
-        SIMILARITY_WEIGHT * ranked["similarity_score"] + VALUATION_WEIGHT * ranked["valuation_score"]
+        0.50 * ranked["similarity_score"] +
+        0.30 * np.clip(sector_bonus, 0.0, 1.0) +
+        0.20 * ranked["valuation_score"]
     )
+    # Apply steep penalty for completely mismatched sectors (e.g. consumer electronics for rice)
+    mismatch_mask = sector_bonus < 0
+    ranked.loc[mismatch_mask, "combined_score"] *= 0.15
+
     return ranked
 
 
 @router.get(
     "/top-by-country",
-    summary="Top companies by valuation (optionally blended with text similarity) for a destination country",
+    summary="Top companies by sector, valuation, and TF-IDF similarity for a destination country",
     description=(
-        "Ranks companies from the Yahoo Finance valuation dataset headquartered "
-        "in the given country by market capitalisation, optionally narrowed to "
-        "the industry implied by a commodity string. Always returns up to "
-        "`limit` companies — falls back to whole-country ranking if the "
-        "commodity/industry filter would return too few results. When `query` "
-        "is provided, ranking instead blends TF-IDF/cosine text similarity "
-        f"between `query` and each company's real business summary ({SIMILARITY_WEIGHT:.0%}) "
-        f"with log-scaled valuation ({VALUATION_WEIGHT:.0%}) — same country/industry "
-        "filtering applies. Omitting `query` leaves the original market-cap-only "
-        "behaviour unchanged."
+        "Ranks companies from the company valuation dataset categorized by sector relevance, "
+        "TF-IDF cosine similarity on company business summary, and log-scaled valuation."
     ),
 )
 def top_companies_by_country(
@@ -254,7 +299,7 @@ def top_companies_by_country(
         description=(
             "Free-text product/company description. When present, ranks by a blend of "
             "TF-IDF/cosine similarity against each company's real business summary and "
-            "log-scaled valuation, instead of valuation alone."
+            "log-scaled valuation."
         ),
     ),
     limit: int = Query(10, ge=1, le=50),
@@ -274,26 +319,32 @@ def top_companies_by_country(
             "companies": [],
         }
 
-    industries = _industries_for_commodity(commodity)
+    effective_commodity = commodity or query
+    industries = _industries_for_commodity(effective_commodity)
+    sectors = _sectors_for_commodity(effective_commodity)
+
     filtered_df = country_df
     industry_filter_applied = False
+
     if industries:
-        narrowed = country_df[country_df["Industry"].isin(industries)]
-        if len(narrowed) >= min(3, limit):
-            filtered_df = narrowed
+        narrowed_ind = country_df[country_df["Industry"].isin(industries)]
+        if len(narrowed_ind) >= min(3, limit):
+            filtered_df = narrowed_ind
             industry_filter_applied = True
+        elif sectors:
+            narrowed_sec = country_df[country_df["Sector"].isin(sectors)]
+            if len(narrowed_sec) >= min(3, limit):
+                filtered_df = narrowed_sec
+                industry_filter_applied = True
 
     query_clean = (query or "").strip()
-    if query_clean:
-        scored_df = _rank_by_similarity_and_valuation(filtered_df, query_clean)
-        ranked = scored_df.sort_values("combined_score", ascending=False).head(limit)
-    else:
-        ranked = filtered_df.sort_values("MarketCap", ascending=False).head(limit)
+    scored_df = _rank_by_similarity_and_valuation(filtered_df, query_clean, effective_commodity)
+    ranked = scored_df.sort_values("combined_score", ascending=False).head(limit)
 
     return {
         "status": "OK",
         "country": country_name,
-        "commodity": commodity,
+        "commodity": effective_commodity,
         "query": query_clean or None,
         "ranking_mode": "similarity_and_valuation" if query_clean else "valuation_only",
         "industry_filter_applied": industry_filter_applied,
