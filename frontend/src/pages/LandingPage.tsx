@@ -168,10 +168,16 @@ export default function LandingPage() {
             }}
             className="absolute inset-x-4 sm:left-12 lg:left-20 top-1/2 -translate-y-1/2 max-w-sm sm:max-w-[620px] xl:max-w-[680px] space-y-6 sm:space-y-7 z-20 pointer-events-none transform-gpu"
           >
-            <h1 className="text-3xl sm:text-5xl sm:text-6xl lg:text-[4.3rem] xl:text-[4.75rem] font-display font-extrabold tracking-tight leading-[1.02] text-[var(--text-primary)] pointer-events-auto">
+            <span className="block font-display font-bold text-xl sm:text-2xl tracking-wide text-blue-900">
+              Globex
+            </span>
+
+            <h1 className="text-2xl sm:text-4xl sm:text-5xl lg:text-[3.6rem] xl:text-[4rem] font-display font-extrabold tracking-tight leading-[1.02] text-[var(--text-primary)] pointer-events-auto">
               <Balancer>
-                <SplitText text="Trade globally." delay={0.1} className="justify-start font-display font-extrabold" />
-                <span className="font-serif italic text-[var(--emerald)] text-4xl sm:text-6xl sm:text-7xl lg:text-[5.2rem] xl:text-[5.75rem] inline-block mt-1 font-normal tracking-wide">
+                <span className="text-[var(--emerald)] inline-block">
+                  <SplitText text="Trade globally." delay={0.1} className="justify-start font-display font-extrabold" />
+                </span>
+                <span className="font-serif italic text-[var(--emerald)] text-3xl sm:text-5xl sm:text-6xl lg:text-[4.4rem] xl:text-[4.9rem] inline-block mt-1 font-normal tracking-wide">
                   <SplitText text="With confidence." delay={0.4} className="justify-start font-serif italic" />
                 </span>
               </Balancer>

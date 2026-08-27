@@ -7,7 +7,7 @@ export const Footer = () => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 font-display font-medium text-[var(--text-primary)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--emerald)]" />
-            GLOBEX.AI
+            GLOBEX
           </div>
           <span className="text-[var(--hairline-strong)]">•</span>
           <p className="text-[11px] text-[var(--text-tertiary)]">

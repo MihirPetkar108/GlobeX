@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { Workflow, FilePlus2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Workflow, FilePlus2, TrendingUp } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -13,9 +13,9 @@ interface RailStep {
 }
 
 /**
- * Export flow's own sidebar — exactly 3 tabs: Export Trades (landing),
- * Create Listing, Discover. Fully separate from the Import sidebar; the two
- * flows no longer share one direction-aware rail.
+ * Export flow's own sidebar — exactly 4 tabs: Dashboard, Export Trades
+ * (landing), Create Listing, Discover. Fully separate from the Import
+ * sidebar; the two flows no longer share one direction-aware rail.
  */
 interface ExportSidebarProps {
   /** Renders as an always-visible block instead of the desktop-only rail (used inside the mobile drawer). */
@@ -29,6 +29,13 @@ export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, da
   const location = useLocation();
 
   const steps: RailStep[] = [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      href: "/home",
+      icon: LayoutDashboard,
+      matchPrefixes: ["/home"],
+    },
     {
       key: "export-trades",
       label: "Export Trades",

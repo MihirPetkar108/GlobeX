@@ -123,7 +123,7 @@ export const AuthAccordion: React.FC<AuthAccordionProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display font-bold text-base text-[var(--text-primary)]">
-                    Sign in to GlobeXAI
+                    Sign in to Globex
                   </h3>
                   <span className="text-[10px] font-mono text-[var(--brand-teal)] px-2 py-0.5 rounded bg-[var(--success-bg)] border border-[var(--brand-teal)]/30 font-semibold">
                     TLS-256

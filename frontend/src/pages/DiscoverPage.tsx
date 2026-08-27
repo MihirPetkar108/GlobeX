@@ -162,18 +162,18 @@ const TraderCard = ({
           </button>
 
           {/* Check / Select Button (Lighter green by default, solid GREEN when active, click again to unselect) */}
-          <button 
+          <button
             type="button"
-            onClick={(e) => { 
-              e.stopPropagation(); 
+            onClick={(e) => {
+              e.stopPropagation();
               const nextState = !isSelected;
               setIsSelected(nextState);
               if (nextState) {
                 toast.success(`Selected ${listing.exporterName} for Trade`, { icon: "✅" });
-                onRequest(listing);
               } else {
                 toast.info(`Unselected ${listing.exporterName}`);
               }
+              onInspect(listing);
             }}
             className={cn(
               "w-9 h-9 rounded-full flex items-center justify-center border transition-all shadow-2xs cursor-pointer",

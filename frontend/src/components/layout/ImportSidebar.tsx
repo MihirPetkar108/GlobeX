@@ -45,7 +45,7 @@ export const ImportSidebar: React.FC<ImportSidebarProps> = ({ mobile = false, da
     },
     {
       key: "trades",
-      label: "Trades",
+      label: "Import Trades",
       href: "/trades",
       icon: Handshake,
       matchPrefixes: ["/trades"],

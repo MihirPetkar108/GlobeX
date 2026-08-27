@@ -111,7 +111,7 @@ export const AppNav: React.FC = () => {
                 <Globe2 className="w-4 h-4 text-[var(--brand)]" />
               </div>
               <span className="font-display font-bold text-base tracking-tight text-[var(--text-primary)]">
-                GlobeX<span className="text-[var(--brand)]">AI</span>
+                Globex
               </span>
             </Link>
 
@@ -233,7 +233,7 @@ export const AppNav: React.FC = () => {
                         <Globe2 className="w-3.5 h-3.5 text-emerald-600" />
                       </div>
                       <span className="font-display font-bold text-sm tracking-tight text-slate-900">
-                        Globex<span className="text-emerald-600">AI</span>
+                        Globex
                       </span>
                     </Link>
                   </div>
