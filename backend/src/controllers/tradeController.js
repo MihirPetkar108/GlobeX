@@ -176,13 +176,20 @@ exports.createTrade = async (req, res) => {
     };
 
     const { data, error } = await supabaseAdmin.from('trades').insert(trade).select('*').single();
-    if (error) return res.status(500).json({ message: 'Failed to create trade request.', error: error.message });
+    if (error) {
+      console.error('[Trade Creation] Insert failed:', error.message);
+      return res.status(500).json({
+        message: 'Failed to create trade request.',
+        error: error.message,
+        code: error.code
+      });
+    }
 
     const [hydrated] = await attachTradeDetails([data]);
     return res.status(201).json({ message: 'Trade request created.', trade: hydrated });
   } catch (error) {
     console.error('[Trades] Create error:', error.message);
-    return res.status(500).json({ message: 'Failed to create trade request.' });
+    return res.status(500).json({ message: 'Failed to create trade request.', error: error.message });
   }
 };
 
