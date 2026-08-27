@@ -43,13 +43,6 @@ export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, da
       matchPrefixes: ["/export-discover"],
     },
     {
-      key: "assess",
-      label: "Assess Export",
-      href: "/assess",
-      icon: Gauge,
-      matchPrefixes: ["/assess", "/trade-analysis"],
-    },
-    {
       key: "listings",
       label: "My Listings",
       href: "/export-listings",

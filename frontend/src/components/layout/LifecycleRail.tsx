@@ -46,13 +46,6 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
       matchPrefixes: ["/discover", "/catalog", "/export-discover"],
     },
     {
-      key: "assess",
-      label: "Assess Trade",
-      href: "/assess",
-      icon: Gauge,
-      matchPrefixes: ["/assess", "/trade-analysis"],
-    },
-    {
       key: "verify",
       label: "Counterparties",
       href: "/counterparties",

@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { DestinationCountryInsight } from "@/services/api/aiService";
 import { 
   Globe2, 
@@ -9,7 +10,8 @@ import {
   DollarSign, 
   Ship, 
   ChevronRight,
-  Users
+  Users,
+  Gauge
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +54,7 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
   userCommodity = "Commodity",
   userQuantityKg = 1000,
 }) => {
+  const navigate = useNavigate();
   const { destination, forecast, scores, risk, pros, cons } = data;
   const tradeRisk = data.tradeRiskAnalysis?.risk;
   const flag = ISO3_FLAG_MAP[destination.iso3] || "🌐";
@@ -153,8 +156,8 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
       )}
 
       {/* ── Card Footer CTA ─────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between pt-2 border-t border-[var(--hairline)] text-xs font-mono text-[var(--text-secondary)] group-hover:text-sky-600 transition-colors">
-        <span className="flex items-center gap-1.5 text-[11px]">
+      <div className="flex items-center justify-between pt-3 border-t border-[var(--hairline)] gap-2">
+        <span className="flex items-center gap-1.5 text-xs font-mono">
           {scores.risk_penalty > 0 ? (
             <>
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
@@ -168,10 +171,27 @@ export const CountryOpportunityCard: React.FC<CountryOpportunityCardProps> = ({
           )}
         </span>
 
-        <span className="flex items-center gap-1 font-bold text-sky-600">
-          <span>Details</span>
-          <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(
+                `/assess?commodity=${encodeURIComponent(userCommodity)}&origin=IND&destination=${destination.iso3}&qty=${userQuantityKg}&value=${Math.round(userQuantityKg * forecast.expected_fob_price_usd_per_kg)}`
+              );
+            }}
+            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-300/80 text-emerald-800 font-mono font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            title={`Assess Corridor Trade Risk for ${destination.country_name}`}
+          >
+            <Gauge className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Assess Corridor</span>
+          </button>
+
+          <span className="flex items-center gap-0.5 font-bold text-xs text-sky-600 group-hover:text-sky-700 py-1 pl-1">
+            <span>Summary</span>
+            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+          </span>
+        </div>
       </div>
     </div>
   );
