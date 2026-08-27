@@ -28,6 +28,9 @@ const CompanyDetailPage = lazy(() => import("@/pages/CompanyDetailPage"));
 const CounterpartyDetailPage = lazy(() => import("@/pages/CounterpartyDetailPage"));
 const RequestsPage = lazy(() => import("@/pages/RequestsPage"));
 const TradesIndexPage = lazy(() => import("@/pages/TradesIndexPage"));
+const ExportTradesPage = lazy(() => import("@/pages/ExportTradesPage"));
+const ExportListingsHubPage = lazy(() => import("@/pages/ExportListingsHubPage"));
+const ExportDiscoverPage = lazy(() => import("@/pages/ExportDiscoverPage"));
 const TradeWorkspacePage = lazy(() => import("@/pages/TradeWorkspacePage"));
 const EscrowPage = lazy(() => import("@/pages/EscrowPage"));
 const DisputesPage = lazy(() => import("@/pages/DisputesPage"));
@@ -107,6 +110,9 @@ const AnimatedRoutes = () => {
           {/* DEAL */}
           <Route path="/requests" element={<ProtectedRoute><PageTransition><RequestsPage /></PageTransition></ProtectedRoute>} />
           <Route path="/trades" element={<ProtectedRoute><PageTransition><TradesIndexPage /></PageTransition></ProtectedRoute>} />
+          <Route path="/export-trades" element={<ProtectedRoute><PageTransition><ExportTradesPage /></PageTransition></ProtectedRoute>} />
+          <Route path="/export-listings" element={<ProtectedRoute><PageTransition><ExportListingsHubPage /></PageTransition></ProtectedRoute>} />
+          <Route path="/export-discover" element={<ProtectedRoute><PageTransition><ExportDiscoverPage /></PageTransition></ProtectedRoute>} />
           <Route path="/trades/:id" element={<ProtectedRoute><PageTransition><TradeWorkspacePage /></PageTransition></ProtectedRoute>} />
 
           {/* SETTLE */}

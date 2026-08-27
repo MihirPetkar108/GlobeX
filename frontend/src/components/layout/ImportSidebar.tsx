@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { Compass, Gauge, ShieldCheck, Handshake, Landmark, Workflow } from "lucide-react";
+import { LayoutDashboard, Compass, Handshake } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -13,21 +13,29 @@ interface RailStep {
 }
 
 /**
- * Direction-aware lifecycle rail. Same five stages for every org — only the
- * label text forks on `activeDirection`.
+ * Import flow's own sidebar — exactly 3 tabs: Dashboard, Marketplace, Trades.
+ * Trade detail (/trades/:id) is deliberately NOT a nav item here — it's only
+ * reached by clicking into a trade from the Trades page.
  */
-interface LifecycleRailProps {
+interface ImportSidebarProps {
   /** Renders as an always-visible block instead of the desktop-only rail (used inside the mobile drawer). */
   mobile?: boolean;
   /** Renders in sleek dark mode (used in dark sidebar drawer). */
   dark?: boolean;
 }
 
-export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, dark = false }) => {
-  const { isExporterView, hasUnreadTradeUpdates } = useWorkspace();
+export const ImportSidebar: React.FC<ImportSidebarProps> = ({ mobile = false, dark = false }) => {
+  const { hasUnreadTradeUpdates } = useWorkspace();
   const location = useLocation();
 
   const steps: RailStep[] = [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      href: "/home",
+      icon: LayoutDashboard,
+      matchPrefixes: ["/home"],
+    },
     {
       key: "discover",
       label: "Marketplace",
@@ -36,32 +44,11 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
       matchPrefixes: ["/discover", "/catalog"],
     },
     {
-      key: isExporterView ? "export-trades" : "trades",
-      label: isExporterView ? "Export Trades" : "Trades",
-      href: isExporterView ? "/export-trades" : "/trades",
-      icon: isExporterView ? Workflow : Handshake,
-      matchPrefixes: isExporterView ? ["/export-trades"] : ["/trades"],
-    },
-    {
-      key: "assess",
-      label: isExporterView ? "Assess Trade" : "Assess Purchase",
-      href: "/assess",
-      icon: Gauge,
-      matchPrefixes: ["/assess"],
-    },
-    {
-      key: "verify",
-      label: "Counterparties",
-      href: "/counterparties",
-      icon: ShieldCheck,
-      matchPrefixes: ["/counterparties"],
-    },
-    {
-      key: "settle",
-      label: "Settle",
-      href: "/escrow",
-      icon: Landmark,
-      matchPrefixes: ["/escrow", "/disputes", "/ledger"],
+      key: "trades",
+      label: "Trades",
+      href: "/trades",
+      icon: Handshake,
+      matchPrefixes: ["/trades"],
     },
   ];
 
@@ -69,13 +56,12 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
 
   return (
     <nav
-      aria-label="Trade lifecycle"
+      aria-label="Import navigation"
       className={cn(
         "flex-col gap-0.5 py-4 pr-3 select-none",
         mobile ? "flex w-full" : "hidden lg:flex w-60 shrink-0 border-r border-[var(--hairline)] pl-3 sm:pl-6"
       )}
     >
-      {/* Numbered stepper */}
       <div className="relative">
         {steps.map((step, idx) => {
           const isActive = idx === activeIndex;
@@ -143,4 +129,4 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
   );
 };
 
-export default LifecycleRail;
+export default ImportSidebar;

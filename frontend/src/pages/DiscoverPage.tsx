@@ -223,7 +223,7 @@ const TraderCard = ({
 
 export const DiscoverPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const { listings, isExporterView, setActiveDirection } = useWorkspace();
+  const { listings } = useWorkspace();
 
   // Fallback to DEMO_LISTINGS if API listings are empty
   const activeListings = useMemo(() => {
@@ -251,22 +251,14 @@ export const DiscoverPage: React.FC = () => {
 
   // Execute Search / Fetch (forces API refresh if needed)
   const handleFetchList = () => {
-    if (isExporterView) {
-       aiService.rankMarketOpportunity(filterProduct || "Basmati Rice", parseFloat(filterQty) || 1000, "balanced", 6).catch(() => {});
-    } else {
-       aiService.semanticMatch(filterProduct || "Basmati Rice", undefined, parseFloat(filterQty) || 1000, "IND", 100630).catch(() => {});
-    }
+    aiService.semanticMatch(filterProduct || "Basmati Rice", undefined, parseFloat(filterQty) || 1000, "IND", 100630).catch(() => {});
   };
 
   // Initial load API execution
   useEffect(() => {
     n8nWorkflowService.checkHealth().catch(() => {});
-    if (isExporterView) {
-       aiService.rankMarketOpportunity("Basmati Rice", 1000, "balanced", 6).catch(() => {});
-    } else {
-       aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
-    }
-  }, [isExporterView]);
+    aiService.semanticMatch("Basmati Rice", undefined, 1000, "IND", 100630).catch(() => {});
+  }, []);
 
   // Derived filtered items (reactive so selecting All Products or changing filters instantly displays the demo cards)
   const filteredListings = useMemo(() => {
@@ -313,138 +305,121 @@ export const DiscoverPage: React.FC = () => {
       <div className="w-full min-h-screen bg-slate-50 p-4 sm:p-6 md:p-8 selection:bg-emerald-100">
         <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
           
-          {/* Header & Toggle */}
+          {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-2">
             <div>
               <h1 className="text-3xl sm:text-4xl font-display font-black text-slate-900 tracking-tight">Marketplace</h1>
-              <p className="text-sm text-slate-500 mt-2 font-medium">Discover and connect with verified global traders.</p>
-            </div>
-            
-            <div className="flex items-center bg-slate-200/50 p-1.5 rounded-full border border-slate-200/60 shadow-inner">
-              <button
-                onClick={() => setActiveDirection("Import")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-sm font-bold transition-all",
-                  !isExporterView ? "bg-white text-emerald-700 shadow shadow-slate-200/50" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                IMPORT (Buy)
-              </button>
-              <button
-                onClick={() => setActiveDirection("Export")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-sm font-bold transition-all",
-                  isExporterView ? "bg-white text-emerald-700 shadow shadow-slate-200/50" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                EXPORT (Sell)
-              </button>
+              <p className="text-sm text-slate-500 mt-2 font-medium">
+                Discover and connect with verified global traders.
+              </p>
             </div>
           </div>
 
-          {/* Full-width Filter Control with Product Dropdown & Icon-Only Green Search Button */}
-          <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-3 w-full">
-            
-            {/* Product Dropdown */}
-            <div className="flex-1 w-full">
-              <select 
-                value={filterProduct} 
-                onChange={e => setFilterProduct(e.target.value)} 
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all cursor-pointer truncate"
-              >
-                <option value="">All Products</option>
-                {productOptions.map((prod) => (
-                  <option key={prod} value={prod}>{prod}</option>
-                ))}
-              </select>
-            </div>
+          <>
+              {/* Full-width Filter Control with Product Dropdown & Icon-Only Green Search Button */}
+              <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-3 w-full">
+                
+                {/* Product Dropdown */}
+                <div className="flex-1 w-full">
+                  <select 
+                    value={filterProduct} 
+                    onChange={e => setFilterProduct(e.target.value)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all cursor-pointer truncate"
+                  >
+                    <option value="">All Products</option>
+                    {productOptions.map((prod) => (
+                      <option key={prod} value={prod}>{prod}</option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Quantity (Non-negative) */}
-            <div className="w-full md:w-[130px]">
-              <input 
-                type="number" 
-                min="0"
-                placeholder="Qty (kg)" 
-                value={filterQty} 
-                onKeyDown={preventNegativeKeys}
-                onChange={handleNonNegativeChange(setFilterQty)} 
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all" 
-              />
-            </div>
+                {/* Quantity (Non-negative) */}
+                <div className="w-full md:w-[130px]">
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="Qty (kg)" 
+                    value={filterQty} 
+                    onKeyDown={preventNegativeKeys}
+                    onChange={handleNonNegativeChange(setFilterQty)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all" 
+                  />
+                </div>
 
-            {/* Country Dropdown */}
-            <div className="w-full md:w-[170px]">
-              <select 
-                value={filterCountry} 
-                onChange={e => setFilterCountry(e.target.value)} 
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all cursor-pointer"
-              >
-                <option value="">Any Country</option>
-                <option value="India">IND</option>
-                <option value="United States">USA</option>
-                <option value="Germany">DEU</option>
-                <option value="Netherlands">NLD</option>
-                <option value="Singapore">SGP</option>
-                <option value="Australia">AUS</option>
-                <option value="Canada">CAN</option>
-                <option value="Brazil">BRA</option>
-                <option value="Egypt">EGY</option>
-                <option value="Chile">CHL</option>
-                <option value="UAE">ARE</option>
-              </select>
-            </div>
+                {/* Country Dropdown */}
+                <div className="w-full md:w-[170px]">
+                  <select 
+                    value={filterCountry} 
+                    onChange={e => setFilterCountry(e.target.value)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-all cursor-pointer"
+                  >
+                    <option value="">Any Country</option>
+                    <option value="India">IND</option>
+                    <option value="United States">USA</option>
+                    <option value="Germany">DEU</option>
+                    <option value="Netherlands">NLD</option>
+                    <option value="Singapore">SGP</option>
+                    <option value="Australia">AUS</option>
+                    <option value="Canada">CAN</option>
+                    <option value="Brazil">BRA</option>
+                    <option value="Egypt">EGY</option>
+                    <option value="Chile">CHL</option>
+                    <option value="UAE">ARE</option>
+                  </select>
+                </div>
 
-            {/* Price Min / Max (Non-negative) */}
-            <div className="flex items-center gap-1.5 w-full md:w-[220px] bg-slate-50 border border-slate-100 rounded-xl px-2">
-              <input 
-                type="number" 
-                min="0"
-                placeholder="Min $" 
-                value={minPrice} 
-                onKeyDown={preventNegativeKeys}
-                onChange={handleNonNegativeChange(setMinPrice)} 
-                className="w-full px-2 py-3 bg-transparent text-sm font-medium text-slate-800 focus:outline-none text-center" 
-              />
-              <span className="text-slate-300 font-bold">-</span>
-              <input 
-                type="number" 
-                min="0"
-                placeholder="Max $" 
-                value={maxPrice} 
-                onKeyDown={preventNegativeKeys}
-                onChange={handleNonNegativeChange(setMaxPrice)} 
-                className="w-full px-2 py-3 bg-transparent text-sm font-medium text-slate-800 focus:outline-none text-center" 
-              />
-            </div>
+                {/* Price Min / Max (Non-negative) */}
+                <div className="flex items-center gap-1.5 w-full md:w-[220px] bg-slate-50 border border-slate-100 rounded-xl px-2">
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="Min $" 
+                    value={minPrice} 
+                    onKeyDown={preventNegativeKeys}
+                    onChange={handleNonNegativeChange(setMinPrice)} 
+                    className="w-full px-2 py-3 bg-transparent text-sm font-medium text-slate-800 focus:outline-none text-center" 
+                  />
+                  <span className="text-slate-300 font-bold">-</span>
+                  <input 
+                    type="number" 
+                    min="0"
+                    placeholder="Max $" 
+                    value={maxPrice} 
+                    onKeyDown={preventNegativeKeys}
+                    onChange={handleNonNegativeChange(setMaxPrice)} 
+                    className="w-full px-2 py-3 bg-transparent text-sm font-medium text-slate-800 focus:outline-none text-center" 
+                  />
+                </div>
 
-            {/* Icon-Only Green Search Button */}
-            <button
-              type="button"
-              onClick={handleFetchList}
-              title="Search / Fetch Traders"
-              className="w-full md:w-auto h-[46px] px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-bold flex items-center justify-center transition-all shadow-sm shrink-0 cursor-pointer"
-            >
-              <Search className="w-4 h-4 stroke-[2.5]" />
-            </button>
-          </div>
-
-          {/* Trader Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
-            {filteredListings.length > 0 ? (
-              filteredListings.map(listing => (
-                <TraderCard 
-                  key={listing.id} 
-                  listing={listing} 
-                  onInspect={setInspectListing} 
-                  onRequest={setRequestListing} 
-                />
-              ))
-            ) : (
-              <div className="col-span-full py-16 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-100 border-dashed">
-                No traders found matching your criteria. Try adjusting the filters and clicking Fetch.
+                {/* Icon-Only Green Search Button */}
+                <button
+                  type="button"
+                  onClick={handleFetchList}
+                  title="Search / Fetch Traders"
+                  className="w-full md:w-auto h-[46px] px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl font-bold flex items-center justify-center transition-all shadow-sm shrink-0 cursor-pointer"
+                >
+                  <Search className="w-4 h-4 stroke-[2.5]" />
+                </button>
               </div>
-            )}
-          </div>
+
+              {/* Trader Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+                {filteredListings.length > 0 ? (
+                  filteredListings.map(listing => (
+                    <TraderCard 
+                      key={listing.id} 
+                      listing={listing} 
+                      onInspect={setInspectListing} 
+                      onRequest={setRequestListing} 
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-full py-16 text-center text-slate-400 font-medium bg-white rounded-3xl border border-slate-100 border-dashed">
+                    No traders found matching your criteria. Try adjusting the filters and clicking Fetch.
+                  </div>
+                )}
+              </div>
+          </>
         </div>
 
         <ListingDetailDrawer 

@@ -198,7 +198,7 @@ export const DashboardPage: React.FC = () => {
               type="button"
               onClick={() => {
                 setActiveDirection("Export");
-                navigate("/discover");
+                navigate("/export-trades");
               }}
               className={cn(
                 "p-6 rounded-3xl border transition-all duration-200 flex items-center justify-between text-left group cursor-pointer relative overflow-hidden",

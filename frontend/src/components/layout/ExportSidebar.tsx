@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { cn } from "@/lib/utils";
-import { Compass, Gauge, ShieldCheck, Handshake, Landmark, Workflow } from "lucide-react";
+import { Workflow, FilePlus2, TrendingUp } from "lucide-react";
 
 interface RailStep {
   key: string;
@@ -13,55 +13,42 @@ interface RailStep {
 }
 
 /**
- * Direction-aware lifecycle rail. Same five stages for every org — only the
- * label text forks on `activeDirection`.
+ * Export flow's own sidebar — exactly 3 tabs: Export Trades (landing),
+ * Create Listing, Discover. Fully separate from the Import sidebar; the two
+ * flows no longer share one direction-aware rail.
  */
-interface LifecycleRailProps {
+interface ExportSidebarProps {
   /** Renders as an always-visible block instead of the desktop-only rail (used inside the mobile drawer). */
   mobile?: boolean;
   /** Renders in sleek dark mode (used in dark sidebar drawer). */
   dark?: boolean;
 }
 
-export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, dark = false }) => {
-  const { isExporterView, hasUnreadTradeUpdates } = useWorkspace();
+export const ExportSidebar: React.FC<ExportSidebarProps> = ({ mobile = false, dark = false }) => {
+  const { hasUnreadTradeUpdates } = useWorkspace();
   const location = useLocation();
 
   const steps: RailStep[] = [
     {
-      key: "discover",
-      label: "Marketplace",
-      href: "/discover",
-      icon: Compass,
-      matchPrefixes: ["/discover", "/catalog"],
+      key: "export-trades",
+      label: "Export Trades",
+      href: "/export-trades",
+      icon: Workflow,
+      matchPrefixes: ["/export-trades"],
     },
     {
-      key: isExporterView ? "export-trades" : "trades",
-      label: isExporterView ? "Export Trades" : "Trades",
-      href: isExporterView ? "/export-trades" : "/trades",
-      icon: isExporterView ? Workflow : Handshake,
-      matchPrefixes: isExporterView ? ["/export-trades"] : ["/trades"],
+      key: "export-listings",
+      label: "Create Listing",
+      href: "/export-listings",
+      icon: FilePlus2,
+      matchPrefixes: ["/export-listings"],
     },
     {
-      key: "assess",
-      label: isExporterView ? "Assess Trade" : "Assess Purchase",
-      href: "/assess",
-      icon: Gauge,
-      matchPrefixes: ["/assess"],
-    },
-    {
-      key: "verify",
-      label: "Counterparties",
-      href: "/counterparties",
-      icon: ShieldCheck,
-      matchPrefixes: ["/counterparties"],
-    },
-    {
-      key: "settle",
-      label: "Settle",
-      href: "/escrow",
-      icon: Landmark,
-      matchPrefixes: ["/escrow", "/disputes", "/ledger"],
+      key: "export-discover",
+      label: "Discover",
+      href: "/export-discover",
+      icon: TrendingUp,
+      matchPrefixes: ["/export-discover"],
     },
   ];
 
@@ -69,13 +56,12 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
 
   return (
     <nav
-      aria-label="Trade lifecycle"
+      aria-label="Export navigation"
       className={cn(
         "flex-col gap-0.5 py-4 pr-3 select-none",
         mobile ? "flex w-full" : "hidden lg:flex w-60 shrink-0 border-r border-[var(--hairline)] pl-3 sm:pl-6"
       )}
     >
-      {/* Numbered stepper */}
       <div className="relative">
         {steps.map((step, idx) => {
           const isActive = idx === activeIndex;
@@ -127,8 +113,8 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
                   <span className="truncate py-0.5">{step.label}</span>
                 </div>
 
-                {/* Notification dot for Trades item when trade status is updated */}
-                {step.key === "trades" && hasUnreadTradeUpdates && (
+                {/* Notification dot for Export Trades item when a request/status is updated */}
+                {step.key === "export-trades" && hasUnreadTradeUpdates && (
                   <span className="flex h-2 w-2 relative shrink-0 mr-1">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -143,4 +129,4 @@ export const LifecycleRail: React.FC<LifecycleRailProps> = ({ mobile = false, da
   );
 };
 
-export default LifecycleRail;
+export default ExportSidebar;
