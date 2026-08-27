@@ -176,7 +176,7 @@ class TradesService {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.message || `Trade request failed (${res.status})`);
+      throw new Error(body.error ? `${body.message || "Trade request failed."} ${body.error}` : body.message || `Trade request failed (${res.status})`);
     }
     const data = await res.json();
     return (data.trade || data) as TradeRecord;

@@ -158,6 +158,7 @@ export const RequestsPage: React.FC = () => {
   const handleConfirmSendRequest = async () => {
     if (!user.organizationId) {
       toast.error("Complete organization onboarding before sending a trade request.");
+      console.error("Missing organizationId. User data:", user);
       return;
     }
     if (!selectedListing.id) {
@@ -169,14 +170,24 @@ export const RequestsPage: React.FC = () => {
     try {
       let exportReq: any;
       try {
+        console.log("Creating trade request with:", {
+          listingId: selectedListing.id,
+          quantity,
+          agreedPrice: unitPrice,
+          organizationId: user.organizationId,
+        });
+
         const trade = await tradesService.createTradeRequest({
           listingId: selectedListing.id,
           quantity,
           agreedPrice: unitPrice,
           currency: "USD",
         });
+
+        console.log("Trade request created successfully:", trade);
         exportReq = mapTradeToExportRequest(trade);
-      } catch {
+      } catch (e) {
+        console.warn("Backend trade creation fallback to local workspace:", e);
         const newId = `EXP-REQ-${Date.now().toString().slice(-6)}`;
         exportReq = {
           id: newId,
@@ -219,6 +230,7 @@ export const RequestsPage: React.FC = () => {
       setReviewOpen(false);
       setSuccessOpen(true);
     } catch (err) {
+      console.error("Trade request creation failed:", err);
       toast.error(err instanceof Error ? err.message : "Could not send the trade request.");
     } finally {
       setIsSending(false);

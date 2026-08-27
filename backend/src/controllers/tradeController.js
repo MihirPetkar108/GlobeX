@@ -77,6 +77,14 @@ exports.createTrade = async (req, res) => {
   const agreedPrice = Number(req.body.agreed_price ?? req.body.agreedPrice ?? req.body.unit_price);
   const currency = req.body.currency || 'USD';
 
+  console.log('[Trade Creation] Request received:', {
+    listingId,
+    quantity,
+    agreedPrice,
+    currency,
+    userId: req.user?.id
+  });
+
   if (!listingId) return res.status(400).json({ message: 'listing_id is required.' });
   if (!Number.isFinite(quantity) || quantity <= 0) {
     return res.status(400).json({ message: 'quantity must be a positive number.' });
@@ -87,17 +95,35 @@ exports.createTrade = async (req, res) => {
 
   try {
     const member = await getMembership(req.user.id);
+    console.log('[Trade Creation] User membership:', member);
     
     // Check if user has organization membership
     if (!member?.organization_id) {
-      return res.status(403).json({ message: 'Only organization members can send trade requests.' });
+      console.error('[Trade Creation] No organization membership found for user:', req.user?.id);
+      // For testing: allow requests without organization by using user ID as fallback
+      if (useMock) {
+        console.warn('[Trade Creation] Using mock mode fallback - allowing request without organization');
+      } else {
+        return res.status(403).json({ message: 'Only organization members can send trade requests.' });
+      }
     }
 
     // Use the requesting user's organization as the importer
     // Platform admins can optionally specify a different importer organization
-    let importerId = member.organization_id;
+    let importerId = member?.organization_id;
+    
+    // Fallback for testing without proper organization setup
+    if (!importerId && useMock) {
+      importerId = req.user.id; // Use user ID as organization ID in mock mode
+      console.warn('[Trade Creation] Using user ID as organization ID for mock mode');
+    }
+    
     if (PLATFORM_ADMIN_ROLES.has(member?.platform_role) && req.body.importer_id) {
       importerId = req.body.importer_id;
+    }
+    
+    if (!importerId) {
+      return res.status(400).json({ message: 'Unable to determine importer organization.' });
     }
 
     const now = new Date().toISOString();
@@ -150,13 +176,20 @@ exports.createTrade = async (req, res) => {
     };
 
     const { data, error } = await supabaseAdmin.from('trades').insert(trade).select('*').single();
-    if (error) return res.status(500).json({ message: 'Failed to create trade request.', error: error.message });
+    if (error) {
+      console.error('[Trade Creation] Insert failed:', error.message);
+      return res.status(500).json({
+        message: 'Failed to create trade request.',
+        error: error.message,
+        code: error.code
+      });
+    }
 
     const [hydrated] = await attachTradeDetails([data]);
     return res.status(201).json({ message: 'Trade request created.', trade: hydrated });
   } catch (error) {
     console.error('[Trades] Create error:', error.message);
-    return res.status(500).json({ message: 'Failed to create trade request.' });
+    return res.status(500).json({ message: 'Failed to create trade request.', error: error.message });
   }
 };
 

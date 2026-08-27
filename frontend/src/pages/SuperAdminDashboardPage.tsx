@@ -77,7 +77,8 @@ export default function SuperAdminDashboardPage() {
       if (!response.ok) throw new Error("Failed to fetch organizations");
       const data = await response.json();
       const mapped = data.map(mapBackendOrgToFrontend);
-      setOrganizations(mapped);
+      // Reverse to show latest added organizations at the top
+      setOrganizations(mapped.reverse());
     } catch (error) {
       console.error("Error loading organizations:", error);
       toast.error("Failed to load organizations from backend.");
