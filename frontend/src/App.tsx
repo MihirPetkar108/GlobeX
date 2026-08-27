@@ -33,6 +33,7 @@ const TradesIndexPage = lazy(() => import("@/pages/TradesIndexPage"));
 const ExportTradesPage = lazy(() => import("@/pages/ExportTradesPage"));
 const ExportListingsHubPage = lazy(() => import("@/pages/ExportListingsHubPage"));
 const ExportDiscoverPage = lazy(() => import("@/pages/ExportDiscoverPage"));
+const MyListingsPage = lazy(() => import("@/pages/MyListingsPage"));
 const TradeWorkspacePage = lazy(() => import("@/pages/TradeWorkspacePage"));
 const EscrowPage = lazy(() => import("@/pages/EscrowPage"));
 const DisputesPage = lazy(() => import("@/pages/DisputesPage"));
@@ -116,6 +117,7 @@ const AnimatedRoutes = () => {
           <Route path="/trades" element={<ProtectedRoute><PageTransition><TradesIndexPage /></PageTransition></ProtectedRoute>} />
           <Route path="/export-trades" element={<ProtectedRoute><PageTransition><ExportTradesPage /></PageTransition></ProtectedRoute>} />
           <Route path="/export-listings" element={<ProtectedRoute><PageTransition><ExportListingsHubPage /></PageTransition></ProtectedRoute>} />
+          <Route path="/my-listings" element={<ProtectedRoute><PageTransition><MyListingsPage /></PageTransition></ProtectedRoute>} />
           <Route path="/export-discover" element={<ProtectedRoute><PageTransition><ExportDiscoverPage /></PageTransition></ProtectedRoute>} />
           <Route path="/trades/:id" element={<ProtectedRoute><PageTransition><TradeWorkspacePage /></PageTransition></ProtectedRoute>} />
 
@@ -138,7 +140,6 @@ const AnimatedRoutes = () => {
           <Route path="/marketplace/:id" element={<Navigate to="/discover" replace />} />
           <Route path="/market-intelligence" element={<Navigate to="/discover" replace />} />
           <Route path="/trade-analysis" element={<Navigate to="/assess" replace />} />
-          <Route path="/my-listings" element={<Navigate to="/catalog" replace />} />
           <Route path="/export-catalog" element={<Navigate to="/catalog" replace />} />
           <Route path="/wishlist" element={<Navigate to="/catalog" replace />} />
           <Route path="/create-listing" element={<Navigate to="/catalog/new" replace />} />

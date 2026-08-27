@@ -419,7 +419,7 @@ const CreateEditListingDrawer: React.FC<CreateEditModalProps> = ({
 export const ExportListingsPanel: React.FC = () => {
   const navigate = useNavigate();
   const { exportListings, addExportListing, updateExportListing, exportRequests } = useWorkspace();
-  const [filter, setFilter] = useState<ListingFilter>("active");
+  const [filter, setFilter] = useState<ListingFilter>("ALL");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingListing, setEditingListing] = useState<ExportListing | null>(null);
   const [viewingListing, setViewingListing] = useState<ExportListing | null>(null);
@@ -487,55 +487,38 @@ export const ExportListingsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header Controls: Create Listing Button + Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {filterTabs.map((f) => {
-            const count = getFilterCount(f);
-            const isActive = filter === f;
-            return (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
+      {/* Top Header Controls: Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {filterTabs.map((f) => {
+          const count = getFilterCount(f);
+          const isActive = filter === f;
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer",
+                isActive
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80"
+              )}
+            >
+              <span>{FILTER_LABELS[f]}</span>
+              <span
                 className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer",
+                  "px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono",
                   isActive
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/80"
+                    ? "bg-white/20 text-white"
+                    : count > 0
+                    ? "bg-slate-100 text-slate-700"
+                    : "text-slate-400"
                 )}
               >
-                <span>{FILTER_LABELS[f]}</span>
-                <span
-                  className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[10px] font-bold font-mono",
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : count > 0
-                      ? "bg-slate-100 text-slate-700"
-                      : "text-slate-400"
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Create Listing Primary CTA */}
-        <SpecularButton
-          variant="emerald"
-          size="sm"
-          onClick={() => {
-            setEditingListing(null);
-            setIsCreateModalOpen(true);
-          }}
-          icon={<Plus className="w-4 h-4 stroke-[2.5]" />}
-          iconPosition="left"
-        >
-          Create Export Listing
-        </SpecularButton>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Product Listings Grid */}
