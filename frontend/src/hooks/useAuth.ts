@@ -9,6 +9,7 @@ import {
   type AppUser,
   type OrgProfile,
   type RegistrationDocumentPayload,
+  type OrganizationLoginUser,
 } from "@/services/auth/authService";
 
 export type AppState = "NO_SESSION" | "AUTH_LOADING" | "ONBOARDING" | "DASHBOARD";
@@ -70,8 +71,10 @@ export function useAuth(): UseAuthResult {
       });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (nextSession) {
-        loadSnapshot(nextSession);
+      if (!nextSession) {
+        setSession(null);
+        setAppUser(null);
+        setOrganization(null);
       }
     });
 
@@ -109,7 +112,25 @@ export function useAuth(): UseAuthResult {
     try {
       const authData = await authSignIn(email, password);
       setSession(authData.session);
-      await loadSnapshot(authData.session);
+      const loginUser: OrganizationLoginUser = authData.user;
+      setAppUser({
+        id: loginUser.userId,
+        authId: authData.session.user.id,
+        email: loginUser.email,
+        firstName: loginUser.name.split(" ")[0] || null,
+        lastName: loginUser.name.split(" ").slice(1).join(" ") || null,
+      });
+      setOrganization({
+        id: loginUser.organizationId,
+        legalName: loginUser.companyName,
+        tradeName: loginUser.tradeName || null,
+        businessType: loginUser.businessType || null,
+        country: loginUser.country || null,
+        organizationRole: loginUser.role === "admin" ? "ORGANIZATION_ADMIN" : "SALES",
+        onboardingStep: loginUser.onboardingStep || "DONE",
+        onboardingCompleted: loginUser.onboardingCompleted ?? true,
+        verificationStatus: loginUser.verificationStatus,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
       throw err;

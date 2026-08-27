@@ -434,11 +434,22 @@ exports.loginOrganization = async (req, res) => {
 
     const authUserId = authData.user.id;
 
-    // B. Find member association
+    // B. Resolve the application user, then find the organization membership.
+    // Existing records may use a public.users.id different from auth.users.id.
+    const { data: appUser, error: appUserError } = await supabaseAdmin
+      .from('users')
+      .select('id, email, first_name, last_name')
+      .eq('auth_id', authUserId)
+      .maybeSingle();
+
+    if (appUserError || !appUser) {
+      return res.status(404).json({ message: 'Application user profile not found.' });
+    }
+
     const { data: memberData, error: memberError } = await supabaseAdmin
       .from('organization_members')
-      .select('organization_id, organization_role, user_id, users(first_name, last_name, email)')
-      .eq('user_id', authUserId)
+      .select('organization_id, organization_role, user_id')
+      .eq('user_id', appUser.id)
       .single();
 
     if (memberError || !memberData) {
@@ -448,7 +459,7 @@ exports.loginOrganization = async (req, res) => {
     // C. Get organization details
     const { data: orgData, error: orgError } = await supabaseAdmin
       .from('organizations')
-      .select('legal_name, verification_status')
+      .select('id, legal_name, trade_name, business_type, country, verification_status')
       .eq('id', memberData.organization_id)
       .single();
 
@@ -488,10 +499,16 @@ exports.loginOrganization = async (req, res) => {
       refreshToken: authData.session.refresh_token,
       user: {
         userId: memberData.user_id,
-        name: `${memberData.users.first_name} ${memberData.users.last_name}`.trim(),
-        email: memberData.users.email,
+        organizationId: orgData.id,
+        name: `${appUser.first_name || ''} ${appUser.last_name || ''}`.trim(),
+        email: appUser.email,
         role: memberData.organization_role === 'ORGANIZATION_ADMIN' ? 'admin' : 'salesman',
         companyName: orgData.legal_name,
+        tradeName: orgData.trade_name,
+        businessType: orgData.business_type,
+        country: orgData.country,
+        onboardingStep: 'DONE',
+        onboardingCompleted: true,
         verificationStatus: orgData.verification_status
       }
     });

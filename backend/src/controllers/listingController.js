@@ -176,6 +176,8 @@ exports.getListingById = async (req, res) => {
 
 exports.createListing = async (req, res) => {
   const listingInput = getListingInput(req.body);
+  if (!listingInput.currency) listingInput.currency = 'USD';
+  if (!listingInput.incoterms) listingInput.incoterms = 'FOB';
   const validationError = validateListing(listingInput);
   if (validationError) return res.status(400).json({ message: validationError });
 
