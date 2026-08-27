@@ -16,7 +16,12 @@ let useMock = true;
 if (!isPlaceholder(supabaseUrl) && !isPlaceholder(supabaseAnonKey)) {
   try {
     // Anon client for Auth operations
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     // Service role client for DB writes (bypasses RLS)
     if (!isPlaceholder(supabaseServiceKey)) {

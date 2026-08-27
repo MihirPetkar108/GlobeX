@@ -6,6 +6,7 @@
 
 import { TopBuyer, TOP_BUYERS_DATA } from "@/data/mockTradeData";
 import { supabase } from "@/lib/supabaseClient";
+import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 
 export interface ShippingETASource {
   claim: string;
@@ -479,7 +480,7 @@ class AIService {
 
   constructor() {
     this.baseUrl = (import.meta as any).env?.VITE_FASTAPI_AI_URL || "http://localhost:8000";
-    this.apiBaseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:5002";
+    this.apiBaseUrl = getApiBaseUrl();
   }
 
   /**

@@ -468,7 +468,7 @@ exports.loginOrganization = async (req, res) => {
     }
 
     if (orgData.verification_status !== 'VERIFIED') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       return res.status(403).json({
         message: `Organization verification status is ${orgData.verification_status}. Login is allowed only after approval.`,
         status: orgData.verification_status
@@ -477,8 +477,7 @@ exports.loginOrganization = async (req, res) => {
 
     // D. Restriction check on verification_status
     if (orgData.verification_status === 'PENDING') {
-      // Sign out from Supabase Auth to prevent keeping active session
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       return res.status(403).json({
         message: 'Organization under verification. You will be allowed to login once verified by Super Admin.',
         status: 'PENDING'
@@ -486,7 +485,7 @@ exports.loginOrganization = async (req, res) => {
     }
 
     if (orgData.verification_status === 'REJECTED') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       return res.status(403).json({
         message: 'Organization verification rejected. Login access denied.',
         status: 'REJECTED'
