@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Listing } from "@/types/trade";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { aiService, TradeIntakePayload } from "@/services/api/aiService";
 import SpecularButton from "@/components/ui/SpecularButton";
 import {
@@ -45,6 +46,7 @@ export const CreateTradeRequestDrawer: React.FC<CreateTradeRequestDrawerProps> =
   onClose,
 }) => {
   const navigate = useNavigate();
+  const { user, addExportRequest } = useWorkspace();
 
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -122,10 +124,48 @@ export const CreateTradeRequestDrawer: React.FC<CreateTradeRequestDrawerProps> =
     setIsSubmitting(true);
     try {
       await aiService.analyzeTradeIntake(form);
+      const newId = `EXP-REQ-${Date.now().toString().slice(-6)}`;
+      const newReq: any = {
+        id: newId,
+        listingId: listing?.id || "",
+        buyer: user.companyName || "Global Imports LLC",
+        country: form.destinationCountry || user.country || "United Arab Emirates",
+        flag: "🇦🇪",
+        product: form.productName,
+        category: listing?.category || "Agriculture",
+        hsCode: form.hsCode || "1006.30",
+        quantity: form.quantity || 500,
+        unit: form.unit || "tonne",
+        originalPrice: form.targetPriceUSD || 1100,
+        originalTradeValue: (form.quantity || 500) * (form.targetPriceUSD || 1100),
+        buyerProposedPrice: form.targetPriceUSD || 1100,
+        buyerProposedTradeValue: (form.quantity || 500) * (form.targetPriceUSD || 1100),
+        status: "NEW REQUEST",
+        negotiationHistory: [
+          {
+            role: "Buyer",
+            price: form.targetPriceUSD || 1100,
+            quantity: form.quantity || 500,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            note: "Trade request created from Marketplace Drawer.",
+          },
+        ],
+        origin: form.originPort || "Nhava Sheva (JNPT), Mumbai",
+        destination: form.destinationCountry || "United Arab Emirates",
+        destinationPort: form.destinationPort || "Jebel Ali Port, Dubai",
+        transit: "5-7 days",
+        incoterm: form.incoterm || "CIF",
+        paymentTerms: "Escrow Secured",
+        paymentStatus: "Pending",
+        buyerRisk: "Low Risk (Grade A+)",
+        requiredLicenses: form.requiredCertifications?.join(", ") || "APEDA Phytosanitary",
+        createdAt: new Date().toISOString().split("T")[0],
+      };
+      addExportRequest(newReq);
       setTimeout(() => {
         setIsSubmitting(false);
         onClose();
-        navigate("/trades/TRD-IND-UAE-550K");
+        navigate(`/trades/${newId}`);
       }, 400);
     } catch (err) {
       console.error(err);

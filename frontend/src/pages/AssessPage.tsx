@@ -57,11 +57,12 @@ export const AssessPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { activeDirection, isImporterView } = useWorkspace();
 
-  const commodity = searchParams.get("commodity") || "Basmati Rice";
+  const commodity = searchParams.get("commodity") || "1121 Steam Extra Long Grain Basmati Rice";
   const origin = searchParams.get("origin") || "IND";
   const destination = searchParams.get("destination") || "ARE";
   const quantityKg = Number(searchParams.get("qty")) || 1000;
-  const tradeValueUSD = Number(searchParams.get("value")) || 500000;
+  const rawValue = searchParams.get("value");
+  const tradeValueUSD = rawValue ? Number(rawValue) : Math.round(quantityKg * 2.10);
 
   const [activeTab, setActiveTab] = useState<"overview" | "anomaly" | "tariffs" | "rag">("overview");
 
@@ -80,7 +81,7 @@ export const AssessPage: React.FC = () => {
   const [sandboxResult, setSandboxResult] = useState<TradeAnomalyResult | null>(null);
   const [sandboxLoading, setSandboxLoading] = useState(false);
 
-  const [ragQuery, setRagQuery] = useState("India UAE CEPA tariff exemption and phytosanitary rules for rice export");
+  const [ragQuery, setRagQuery] = useState(`India ${destination} CEPA trade tariff rules and documentation for ${commodity} export`);
   const [ragResults, setRagResults] = useState<{
     passages: RAGRetrievedPassage[];
     structuredEvidence: Record<string, any>;

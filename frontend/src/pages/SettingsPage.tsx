@@ -17,7 +17,7 @@ const FIELD_VALUE = "text-sm text-[var(--text-primary)] font-medium";
  * WorkspaceContext.setActiveDirection exactly — no second direction system.
  */
 export const SettingsPage: React.FC = () => {
-  const { user, businessType, activeDirection, canSwitchDirection, setActiveDirection } = useWorkspace();
+  const { user, businessType, activeDirection, setActiveDirection } = useWorkspace();
 
   const otherDirection: TradeDirection = activeDirection === "Export" ? "Import" : "Export";
 
@@ -75,28 +75,20 @@ export const SettingsPage: React.FC = () => {
 
         <section className="rounded-[var(--radius-lg)] border border-[var(--hairline)] bg-[var(--surface-1)] p-5 space-y-3">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">Trade Direction</h2>
-          {canSwitchDirection ? (
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs text-[var(--text-secondary)] max-w-sm">
-                Your organization is registered as <strong>BOTH</strong> — you may switch which
-                journey (Export or Import) drives Discover, Assess, and every model call.
-              </p>
-              <button
-                type="button"
-                onClick={() => setActiveDirection(otherDirection)}
-                className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border border-[var(--hairline-strong)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-xs font-semibold text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
-              >
-                <ArrowLeftRight className="w-3.5 h-3.5" />
-                Switch to {otherDirection}
-              </button>
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--text-secondary)]">
-              Your organization is pinned to <strong>{activeDirection}</strong> ({businessType}) —
-              direction is a fact about the org, not a per-user preference, so it cannot be
-              switched here.
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs text-[var(--text-secondary)] max-w-sm">
+              You may switch which journey (Export or Import) drives Discover, Assess, and every
+              model call.
             </p>
-          )}
+            <button
+              type="button"
+              onClick={() => setActiveDirection(otherDirection)}
+              className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border border-[var(--hairline-strong)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-xs font-semibold text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              Switch to {otherDirection}
+            </button>
+          </div>
         </section>
       </div>
     </AppShell>

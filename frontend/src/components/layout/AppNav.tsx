@@ -8,42 +8,43 @@ import {
   Building2,
   Globe2,
   ChevronDown,
-  Search,
   Menu,
   X,
   LogOut,
   ArrowLeftRight,
 } from "lucide-react";
-import CommandPalette from "@/components/common/CommandPalette";
 import ImportSidebar from "@/components/layout/ImportSidebar";
 import ExportSidebar from "@/components/layout/ExportSidebar";
 
 /**
- * Renders only when businessType === "BOTH" (canSwitchDirection).
- * Import and Export share this control, but the destination preserves the
- * section the user is working in: trades stay trades and marketplace work
- * stays marketplace work.
+ * Always-on toggle beside the profile menu that flips between the Import
+ * and Export flows. The destination page teleports to its mirror in the
+ * other direction: Marketplace <-> Create Listing, Import Trades <->
+ * Export Trades; anything else (e.g. the shared dashboard) stays put.
  */
 const DirectionControl: React.FC = () => {
-  const { activeDirection, canSwitchDirection, setActiveDirection } = useWorkspace();
+  const { activeDirection, setActiveDirection } = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (!canSwitchDirection) {
-    return (
-      <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] border border-[var(--hairline)] bg-[var(--surface-2)] text-xs font-medium text-[var(--text-secondary)]">
-        <span>{activeDirection === "Export" ? "Exporter" : "Importer"}</span>
-      </div>
-    );
-  }
-
+  // Teleport to the mirror-image page in the other direction: Marketplace
+  // (/discover) <-> Create Listing (/export-listings), and Import Trades
+  // (/trades) <-> Export Trades (/export-trades). Anything else (e.g. the
+  // shared /home dashboard) just stays put while the direction flips.
   const switchDirection = () => {
-    const isTradeSection = location.pathname === "/export-trades" || location.pathname === "/trades";
-    const destination = activeDirection === "Export"
-      ? isTradeSection ? "/trades" : "/discover"
-      : isTradeSection ? "/export-trades" : "/export-listings";
+    const nextDirection = activeDirection === "Export" ? "Import" : "Export";
+    const path = location.pathname;
 
-    setActiveDirection(activeDirection === "Export" ? "Import" : "Export");
+    let destination = path;
+    if (path.startsWith("/trades") || path.startsWith("/export-trades")) {
+      destination = nextDirection === "Import" ? "/trades" : "/export-trades";
+    } else if (path.startsWith("/discover") || path.startsWith("/export-listings")) {
+      destination = nextDirection === "Import" ? "/discover" : "/export-listings";
+    } else if (path !== "/home") {
+      destination = nextDirection === "Import" ? "/discover" : "/export-listings";
+    }
+
+    setActiveDirection(nextDirection);
     navigate(destination);
   };
 
@@ -55,7 +56,7 @@ const DirectionControl: React.FC = () => {
       title="Switch flow"
     >
       <ArrowLeftRight className="w-3.5 h-3.5" />
-      <span>{activeDirection === "Export" ? "Exporting" : "Importing"}</span>
+      <span>{activeDirection === "Export" ? "Exporter" : "Importer"}</span>
     </button>
   );
 };
@@ -65,7 +66,6 @@ export const AppNav: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -135,20 +135,8 @@ export const AppNav: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: search, direction, account */}
+          {/* Right: direction, account */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setCommandPaletteOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-3 h-9 rounded-[var(--radius-md)] border border-[var(--hairline)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-xs text-[var(--text-tertiary)] transition-colors cursor-pointer"
-            >
-              <Search className="w-3.5 h-3.5" />
-              <span>Search</span>
-              <kbd className="ml-2 text-[10px] font-mono px-1 py-0.5 rounded border border-[var(--hairline)] text-[var(--text-muted)]">
-                &#8984;K
-              </kbd>
-            </button>
-
             <DirectionControl />
 
             <div className="relative" ref={accountMenuRef}>
@@ -272,8 +260,6 @@ export const AppNav: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
-
-      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </>
   );
 };

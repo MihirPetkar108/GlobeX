@@ -97,9 +97,40 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [listingsLoading, setListingsLoading] = useState<boolean>(true);
   const [listingsError, setListingsError] = useState<string | null>(null);
   
-  // Exporter Product Listings and Export Trades
-  const [exportListings, setExportListings] = useState<ExportListing[]>(INITIAL_EXPORT_LISTINGS);
-  const [exportRequests, setExportRequests] = useState<ExportRequest[]>(INITIAL_EXPORT_REQUESTS);
+  // Exporter Product Listings and Export Trades with localStorage persistence
+  const [exportListings, setExportListings] = useState<ExportListing[]>(() => {
+    try {
+      const saved = localStorage.getItem("globex_export_listings");
+      return saved ? JSON.parse(saved) : INITIAL_EXPORT_LISTINGS;
+    } catch {
+      return INITIAL_EXPORT_LISTINGS;
+    }
+  });
+
+  const [exportRequests, setExportRequests] = useState<ExportRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem("globex_export_requests");
+      return saved ? JSON.parse(saved) : INITIAL_EXPORT_REQUESTS;
+    } catch {
+      return INITIAL_EXPORT_REQUESTS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("globex_export_requests", JSON.stringify(exportRequests));
+    } catch (e) {
+      console.error("Failed to save export requests:", e);
+    }
+  }, [exportRequests]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("globex_export_listings", JSON.stringify(exportListings));
+    } catch (e) {
+      console.error("Failed to save export listings:", e);
+    }
+  }, [exportListings]);
   
   // Notification indicator state for trade updates (counteroffers, status changes)
   const [hasUnreadTradeUpdates, setHasUnreadTradeUpdates] = useState<boolean>(true);
@@ -162,14 +193,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const businessType: BusinessType = organization?.businessType || "EXPORTER";
-  const canSwitchDirection = businessType === "BOTH";
+  // Any user can flip between Import/Export from the header toggle or the
+  // dashboard cards, regardless of the org's registered business type.
+  const canSwitchDirection = true;
 
-  const activeDirection: TradeDirection =
-    businessType === "EXPORTER"
-      ? "Export"
-      : businessType === "IMPORTER"
-        ? "Import"
-        : preferredDirection;
+  const activeDirection: TradeDirection = preferredDirection;
 
   const isExporterView = activeDirection === "Export";
   const isImporterView = activeDirection === "Import";
